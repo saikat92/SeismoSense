@@ -1,0 +1,241 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.demo-shell{background:#0a0f1e;border-radius:12px;overflow:hidden;font-family:var(--font-sans);min-height:560px}
+.topbar{background:#0d1526;border-bottom:1px solid #1e2d4a;padding:10px 16px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:15px;font-weight:500;color:#e8edf8;letter-spacing:0.02em;display:flex;align-items:center;gap:8px}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:#1D9E75;box-shadow:0 0 6px #1D9E75}
+.nav-tabs{display:flex;gap:2px}
+.nav-tab{font-size:11px;padding:5px 12px;border-radius:6px;cursor:pointer;transition:all 0.2s;border:none;font-family:inherit;font-weight:500;background:transparent;color:#7a8baa}
+.nav-tab.active{background:#1e2d4a;color:#e8edf8}
+.live-badge{font-size:10px;background:#1D2F26;color:#1D9E75;padding:3px 8px;border-radius:20px;display:flex;align-items:center;gap:4px}
+.live-dot{width:5px;height:5px;border-radius:50%;background:#1D9E75;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.body{display:grid;grid-template-columns:220px 1fr;height:500px}
+.sidebar{background:#0d1526;border-right:1px solid #1e2d4a;padding:12px;overflow-y:auto}
+.sidebar-section{margin-bottom:16px}
+.sidebar-label{font-size:10px;color:#4a5870;text-transform:uppercase;letter-spacing:0.08em;font-weight:500;margin-bottom:8px}
+.risk-card{border-radius:8px;padding:10px 12px;margin-bottom:8px;border:0.5px solid transparent;cursor:pointer;transition:all 0.2s}
+.risk-card.eq{background:#0F1F18;border-color:#1D9E75}
+.risk-card.storm{background:#0E1A28;border-color:#185FA5}
+.risk-card.cy{background:#1F160A;border-color:#854F0B}
+.risk-card-title{font-size:12px;font-weight:500;color:#c8d4e8;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.risk-pill{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500}
+.pill-high{background:#3D1A1A;color:#E24B4A}
+.pill-mod{background:#2A1F0A;color:#EF9F27}
+.pill-low{background:#0F2A1E;color:#1D9E75}
+.risk-bar-bg{height:4px;background:#1e2d4a;border-radius:2px;overflow:hidden}
+.risk-bar-fill{height:100%;border-radius:2px;transition:width 0.3s}
+.fill-eq{background:#1D9E75}
+.fill-st{background:#378ADD}
+.fill-cy{background:#EF9F27}
+.stat-row{display:flex;justify-content:space-between;margin-top:6px}
+.stat-val{font-size:11px;color:#8a9ab8}
+.map-area{position:relative;background:#060d1a;overflow:hidden}
+.map-svg{width:100%;height:100%}
+.panel-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:8px;background:#0a0f1e}
+.mini-panel{background:#0d1526;border:0.5px solid #1e2d4a;border-radius:8px;padding:10px 12px}
+.mp-title{font-size:10px;color:#4a5870;text-transform:uppercase;letter-spacing:0.07em;font-weight:500;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.mp-title i{font-size:13px}
+.event-item{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid #1a2438}
+.event-item:last-child{border-bottom:none}
+.mag-badge{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0}
+.mag-high{background:#2D1010;color:#E24B4A}
+.mag-med{background:#2A1F0A;color:#EF9F27}
+.mag-low{background:#0F2A1E;color:#1D9E75}
+.event-info{flex:1;min-width:0}
+.event-place{font-size:11px;color:#c8d4e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.event-time{font-size:10px;color:#4a5870}
+.chart-bars{display:flex;align-items:flex-end;gap:4px;height:48px;margin-top:4px}
+.bar{flex:1;border-radius:2px 2px 0 0;min-height:4px;transition:height 0.3s}
+.alert-item{display:flex;gap:8px;padding:4px 0;align-items:flex-start;border-bottom:0.5px solid #1a2438}
+.alert-item:last-child{border-bottom:none}
+.alert-icon{width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;margin-top:1px}
+.ai-cy{background:#2A1F0A;color:#EF9F27}
+.ai-st{background:#0E1A28;color:#378ADD}
+.ai-ts{background:#1F0A1F;color:#D4537E}
+.alert-text{font-size:11px;color:#8a9ab8;line-height:1.4}
+.alert-text strong{color:#c8d4e8;font-weight:500}
+.tab-strip{display:flex;gap:2px;padding:8px 8px 0}
+.tab-btn{font-size:10px;padding:4px 10px;border-radius:6px;border:none;background:transparent;color:#4a5870;cursor:pointer;font-family:inherit;font-weight:500}
+.tab-btn.on{background:#1e2d4a;color:#e8edf8}
+.map-legend{position:absolute;bottom:8px;right:8px;background:rgba(13,21,38,0.9);border:0.5px solid #1e2d4a;border-radius:6px;padding:6px 8px;font-size:10px;color:#7a8baa}
+.legend-row{display:flex;align-items:center;gap:5px;padding:1px 0}
+.legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+</style>
+
+<div class="demo-shell">
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      SeismoSense India
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="setTab('eq',this)">Earthquake</button>
+      <button class="nav-tab" onclick="setTab('storm',this)">Storm</button>
+      <button class="nav-tab" onclick="setTab('cy',this)">Cyclone</button>
+    </div>
+    <div class="live-badge"><div class="live-dot"></div> Live</div>
+  </div>
+
+  <div class="body">
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Risk Overview</div>
+        <div class="risk-card eq">
+          <div class="risk-card-title">Earthquake <span class="risk-pill pill-mod">Moderate</span></div>
+          <div class="risk-bar-bg"><div class="risk-bar-fill fill-eq" style="width:54%"></div></div>
+          <div class="stat-row"><span class="stat-val">Score: 54 / 100</span><span class="stat-val">p=0.54</span></div>
+        </div>
+        <div class="risk-card storm">
+          <div class="risk-card-title">Storm <span class="risk-pill pill-low">Low</span></div>
+          <div class="risk-bar-bg"><div class="risk-bar-fill fill-st" style="width:22%"></div></div>
+          <div class="stat-row"><span class="stat-val">Score: 22 / 100</span><span class="stat-val">p=0.22</span></div>
+        </div>
+        <div class="risk-card cy">
+          <div class="risk-card-title">Cyclone <span class="risk-pill pill-high">High</span></div>
+          <div class="risk-bar-bg"><div class="risk-bar-fill fill-cy" style="width:78%"></div></div>
+          <div class="stat-row"><span class="stat-val">Score: 78 / 100</span><span class="stat-val">p=0.78</span></div>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Location Scan</div>
+        <div style="background:#060d1a;border:0.5px solid #1e2d4a;border-radius:6px;padding:8px">
+          <div style="font-size:10px;color:#4a5870;margin-bottom:4px">Coordinates</div>
+          <div style="display:flex;gap:4px;margin-bottom:6px">
+            <input id="lat-in" type="text" value="22.57" style="flex:1;background:#0d1526;border:0.5px solid #1e2d4a;border-radius:4px;color:#c8d4e8;font-size:11px;padding:4px 6px;font-family:var(--font-mono);outline:none">
+            <input id="lon-in" type="text" value="88.36" style="flex:1;background:#0d1526;border:0.5px solid #1e2d4a;border-radius:4px;color:#c8d4e8;font-size:11px;padding:4px 6px;font-family:var(--font-mono);outline:none">
+          </div>
+          <button onclick="scanLocation()" style="width:100%;background:#1D9E75;border:none;border-radius:4px;color:#fff;font-size:11px;font-weight:500;padding:5px;cursor:pointer;font-family:inherit">Scan Risk ↗</button>
+        </div>
+        <div id="scan-result" style="margin-top:6px;font-size:11px;color:#4a5870;text-align:center">Enter coords and scan</div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Data Sources</div>
+        <div style="font-size:11px;color:#4a5870;line-height:1.8">
+          <div>🟢 USGS FDSNWS — live</div>
+          <div>🔵 IMD Open Data — pending</div>
+          <div>🟡 INCOIS — pending</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;overflow:hidden">
+      <div class="map-area" style="flex:1">
+        <svg class="map-svg" viewBox="0 0 460 300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="460" height="300" fill="#060d1a"/>
+          <!-- Grid lines -->
+          <g stroke="#0e1c30" stroke-width="0.5" opacity="0.6">
+            <line x1="0" y1="60" x2="460" y2="60"/><line x1="0" y1="120" x2="460" y2="120"/>
+            <line x1="0" y1="180" x2="460" y2="180"/><line x1="0" y1="240" x2="460" y2="240"/>
+            <line x1="92" y1="0" x2="92" y2="300"/><line x1="184" y1="0" x2="184" y2="300"/>
+            <line x1="276" y1="0" x2="276" y2="300"/><line x1="368" y1="0" x2="368" y2="300"/>
+          </g>
+          <!-- India outline simplified -->
+          <path d="M130,30 L165,25 L200,28 L225,35 L240,50 L245,70 L250,90 L248,115 L242,135 L235,158 L225,178 L215,195 L205,215 L198,235 L192,255 L188,270 L185,280 L180,270 L175,255 L168,235 L160,215 L150,200 L140,185 L130,165 L122,145 L118,125 L115,105 L118,85 L120,65 L125,45 Z" fill="#0f1e35" stroke="#1e3460" stroke-width="1" opacity="0.9"/>
+          <!-- State borders subtle -->
+          <path d="M160,80 L220,75 M155,120 L235,115 M145,160 L230,155" stroke="#1a2d4a" stroke-width="0.5" fill="none"/>
+          <!-- Bay of Bengal -->
+          <text font-size="8" fill="#1a2d4a" x="270" y="160" font-family="var(--font-sans)">Bay of Bengal</text>
+          <!-- Arabian Sea -->
+          <text font-size="8" fill="#1a2d4a" x="45" y="160" font-family="var(--font-sans)">Arabian Sea</text>
+
+          <!-- Earthquake heatmap dots -->
+          <circle id="eq1" cx="175" cy="90" r="14" fill="#1D9E75" opacity="0.18"/><circle cx="175" cy="90" r="7" fill="#1D9E75" opacity="0.35"/><circle cx="175" cy="90" r="3" fill="#1D9E75" opacity="0.9"/>
+          <circle cx="220" cy="60" r="10" fill="#1D9E75" opacity="0.15"/><circle cx="220" cy="60" r="5" fill="#1D9E75" opacity="0.3"/><circle cx="220" cy="60" r="2" fill="#1D9E75" opacity="0.8"/>
+          <circle cx="148" cy="135" r="18" fill="#E24B4A" opacity="0.2"/><circle cx="148" cy="135" r="9" fill="#E24B4A" opacity="0.4"/><circle cx="148" cy="135" r="3.5" fill="#E24B4A" opacity="0.9"/>
+          <circle cx="192" cy="155" r="8" fill="#EF9F27" opacity="0.2"/><circle cx="192" cy="155" r="4" fill="#EF9F27" opacity="0.4"/><circle cx="192" cy="155" r="2" fill="#EF9F27" opacity="0.8"/>
+          <circle cx="165" cy="50" r="9" fill="#1D9E75" opacity="0.2"/><circle cx="165" cy="50" r="4" fill="#1D9E75" opacity="0.4"/><circle cx="165" cy="50" r="2" fill="#1D9E75" opacity="0.8"/>
+          <!-- Cyclone spiral (Bay of Bengal) -->
+          <g id="cy-layer" opacity="0">
+            <path d="M320,180 Q340,160 330,140 Q320,120 300,130 Q280,140 290,160 Q300,180 320,180" fill="none" stroke="#EF9F27" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>
+            <path d="M320,180 Q350,155 335,125 Q320,95 290,110 Q260,125 275,160 Q290,195 320,180" fill="none" stroke="#EF9F27" stroke-width="1" stroke-dasharray="3,4" opacity="0.4"/>
+            <circle cx="318" cy="162" r="5" fill="#EF9F27" opacity="0.8"/>
+            <path d="M318,162 L295,180 L280,210 L275,235" fill="none" stroke="#EF9F27" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#marr)"/>
+            <text font-size="8" fill="#EF9F27" x="325" y="158" font-family="var(--font-sans)" font-weight="500">CAT 3</text>
+          </g>
+          <!-- Storm layer -->
+          <g id="st-layer" opacity="0">
+            <path d="M80,60 Q120,40 160,65 Q180,77 170,100" fill="none" stroke="#378ADD" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#marr)" opacity="0.8"/>
+            <circle cx="80" cy="60" r="18" fill="#378ADD" opacity="0.1"/>
+            <circle cx="80" cy="60" r="8" fill="#378ADD" opacity="0.25"/>
+            <circle cx="80" cy="60" r="3" fill="#378ADD" opacity="0.9"/>
+            <text font-size="8" fill="#378ADD" x="55" y="50" font-family="var(--font-sans)">Storm TS-04</text>
+          </g>
+          <!-- City markers -->
+          <g>
+            <circle cx="187" cy="113" r="3" fill="#e8edf8" opacity="0.7"/><text font-size="7" fill="#7a8baa" x="192" y="116" font-family="var(--font-sans)">Delhi</text>
+            <circle cx="173" cy="173" r="3" fill="#e8edf8" opacity="0.7"/><text font-size="7" fill="#7a8baa" x="178" y="176" font-family="var(--font-sans)">Mumbai</text>
+            <circle cx="202" cy="173" r="3" fill="#e8edf8" opacity="0.7"/><text font-size="7" fill="#7a8baa" x="207" y="176" font-family="var(--font-sans)">Kolkata</text>
+            <circle cx="196" cy="215" r="3" fill="#e8edf8" opacity="0.7"/><text font-size="7" fill="#7a8baa" x="200" y="218" font-family="var(--font-sans)">Chennai</text>
+          </g>
+          <defs><marker id="marr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
+        </svg>
+        <div class="map-legend">
+          <div class="legend-row"><div class="legend-dot" style="background:#E24B4A"></div> High mag ≥5.5</div>
+          <div class="legend-row"><div class="legend-dot" style="background:#EF9F27"></div> Mod mag 4–5.5</div>
+          <div class="legend-row"><div class="legend-dot" style="background:#1D9E75"></div> Low mag &lt;4</div>
+        </div>
+      </div>
+      <div class="panel-row">
+        <div class="mini-panel">
+          <div class="mp-title"><i class="ti ti-broadcast" aria-hidden="true"></i> Live events</div>
+          <div id="event-feed">
+            <div class="event-item"><div class="mag-badge mag-high">5.8</div><div class="event-info"><div class="event-place">NW Himalaya, HP</div><div class="event-time">2 min ago · 45 km deep</div></div></div>
+            <div class="event-item"><div class="mag-badge mag-med">4.3</div><div class="event-info"><div class="event-place">Andaman Islands</div><div class="event-time">14 min ago · 32 km deep</div></div></div>
+            <div class="event-item"><div class="mag-badge mag-low">3.1</div><div class="event-info"><div class="event-place">Gujarat, Bhuj region</div><div class="event-time">38 min ago · 12 km deep</div></div></div>
+          </div>
+        </div>
+        <div class="mini-panel">
+          <div class="mp-title"><i class="ti ti-chart-bar" aria-hidden="true"></i> 8-week trend</div>
+          <div class="chart-bars" id="trend-bars">
+            <div class="bar" style="height:35%;background:#1D9E75;opacity:0.6"></div>
+            <div class="bar" style="height:55%;background:#1D9E75;opacity:0.6"></div>
+            <div class="bar" style="height:40%;background:#1D9E75;opacity:0.6"></div>
+            <div class="bar" style="height:70%;background:#1D9E75;opacity:0.6"></div>
+            <div class="bar" style="height:48%;background:#1D9E75;opacity:0.6"></div>
+            <div class="bar" style="height:62%;background:#1D9E75;opacity:0.6"></div>
+            <div class="bar" style="height:55%;background:#1D9E75;opacity:0.6"></div>
+            <div class="bar" style="height:80%;background:#1D9E75"></div>
+          </div>
+          <div style="font-size:10px;color:#4a5870;margin-top:4px">Weekly earthquake count (last 8 wks)</div>
+        </div>
+        <div class="mini-panel">
+          <div class="mp-title"><i class="ti ti-bell" aria-hidden="true"></i> Alerts</div>
+          <div id="alert-feed">
+            <div class="alert-item"><div class="alert-icon ai-cy"><i class="ti ti-wind" style="font-size:12px" aria-hidden="true"></i></div><div class="alert-text"><strong>Cyclone Mala</strong> — Bay of Bengal, Cat 3. Track: NW coast.</div></div>
+            <div class="alert-item"><div class="alert-icon ai-ts"><i class="ti ti-waves-electricity" style="font-size:12px" aria-hidden="true"></i></div><div class="alert-text"><strong>Tsunami watch</strong> — Andaman Sea, M5.8 trigger.</div></div>
+            <div class="alert-item"><div class="alert-icon ai-st"><i class="ti ti-cloud-storm" style="font-size:12px" aria-hidden="true"></i></div><div class="alert-text"><strong>TS-04</strong> — Arabian Sea, 80 km/h winds.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const tabs = document.querySelectorAll('.nav-tab');
+function setTab(t, el) {
+  tabs.forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('cy-layer').style.opacity = t==='cy'?'1':'0';
+  document.getElementById('st-layer').style.opacity = t==='storm'?'1':'0';
+  ['cy-layer','st-layer'].forEach(id=>{
+    document.getElementById(id).style.transition='opacity 0.4s';
+  });
+}
+function scanLocation() {
+  const lat = parseFloat(document.getElementById('lat-in').value)||22.57;
+  const lon = parseFloat(document.getElementById('lon-in').value)||88.36;
+  const el = document.getElementById('scan-result');
+  el.style.color='#1D9E75';
+  el.textContent='Scanning...';
+  setTimeout(()=>{
+    const prob = Math.round(30+Math.random()*50);
+    const level = prob>65?'High':prob>40?'Moderate':'Low';
+    const colors = {High:'#E24B4A', Moderate:'#EF9F27', Low:'#1D9E75'};
+    el.style.color = colors[level];
+    el.textContent = `${level} risk (${prob}%) — ${Math.floor(Math.random()*8+1)} events nearby`;
+  }, 800);
+}
+</script>

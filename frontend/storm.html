@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SeismoSense — Storm Detection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="static/css/style.css" />
+  <style>
+    /* ── Storm-page extras ── */
+    .storm-card {
+      background: var(--ss-surface);
+      border: 1px solid var(--ss-border);
+      border-top: 3px solid var(--ss-storm);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      height: 100%;
+    }
+    .cat-badge {
+      font-size: 0.65rem; font-weight: 700;
+      padding: 3px 9px; border-radius: 20px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .cat-LPA { background: #0e1a28; color: #378ADD; }
+    .cat-D   { background: #0f2a1e; color: #1D9E75; }
+    .cat-DD  { background: #2a1f0a; color: #EF9F27; }
+    .cat-CS  { background: #2d1010; color: #E24B4A; }
+
+    .marine-row {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px;
+    }
+    .marine-chip {
+      background: var(--ss-surface2);
+      border: 1px solid var(--ss-border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 0.75rem;
+      color: var(--ss-text);
+    }
+    .marine-chip span { color: var(--ss-muted); font-size: 0.68rem; display: block; }
+
+    /* climate chart bars */
+    .clim-bars {
+      display: flex; align-items: flex-end;
+      gap: 4px; height: 80px; margin-top: 8px;
+    }
+    .clim-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .clim-bar {
+      width: 100%; border-radius: 2px 2px 0 0;
+      min-height: 3px; transition: height 0.4s ease;
+      cursor: pointer;
+    }
+    .clim-bar:hover { opacity: 0.75; }
+    .clim-month { font-size: 0.5rem; color: var(--ss-muted); }
+
+    /* storm list */
+    .storm-item {
+      background: var(--ss-surface2);
+      border: 1px solid var(--ss-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    .storm-item:last-child { margin-bottom: 0; }
+    .storm-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+    }
+    .storm-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .storm-name { font-size: 0.85rem; font-weight: 600; color: var(--ss-text); flex: 1; }
+    .storm-meta { font-size: 0.72rem; color: var(--ss-muted); line-height: 1.7; }
+    .storm-states {
+      display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px;
+    }
+    .state-tag {
+      font-size: 0.62rem; padding: 2px 7px;
+      border-radius: 20px; background: var(--ss-surface);
+      border: 1px solid var(--ss-border); color: var(--ss-muted);
+    }
+
+    /* factor list */
+    .factor-item {
+      font-size: 0.78rem; color: var(--ss-text); padding: 4px 0;
+      border-bottom: 1px solid var(--ss-border);
+      display: flex; gap: 6px; align-items: flex-start;
+    }
+    .factor-item:last-child { border-bottom: none; }
+    .factor-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; background: var(--ss-storm); }
+  </style>
+</head>
+<body>
+
+<!-- ── NAVBAR ── -->
+<nav class="navbar ss-navbar sticky-top px-3 py-2">
+  <div class="d-flex align-items-center gap-2">
+    <span style="color:#1D9E75;font-size:1.2rem">🌐</span>
+    <span class="navbar-brand mb-0">SeismoSense <span style="color:#1D9E75;font-weight:400">India</span></span>
+  </div>
+  <ul class="nav d-none d-md-flex gap-1">
+    <li class="nav-item"><a class="nav-link" href="index.html"><i class="bi bi-activity me-1"></i>Dashboard</a></li>
+    <li class="nav-item"><a class="nav-link" href="earthquake.html"><i class="bi bi-geo me-1"></i>Earthquake</a></li>
+    <li class="nav-item"><a class="nav-link active" href="storm.html"><i class="bi bi-cloud-lightning me-1"></i>Storm</a></li>
+    <li class="nav-item"><a class="nav-link" href="cyclone.html"><i class="bi bi-wind me-1"></i>Cyclone</a></li>
+  </ul>
+  <div class="d-flex align-items-center gap-3">
+    <span id="ss-clock" class="ss-clock d-none d-lg-block">—</span>
+    <div class="live-indicator"><div class="live-dot"></div> LIVE</div>
+  </div>
+</nav>
+
+<!-- ── PAGE HEADER ── -->
+<div class="container-fluid px-3 pt-3 pb-1">
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <div>
+      <h5 class="mb-0" style="color:#e8f0ff">
+        <i class="bi bi-cloud-lightning me-2" style="color:#378ADD"></i>Storm Detection Module
+      </h5>
+      <small style="color:var(--ss-muted)">Open-Meteo Marine API · IMD climatology · India basin coverage</small>
+    </div>
+    <div class="ms-auto d-flex gap-2">
+      <span class="source-badge" style="background:#0e1a28;color:#378ADD;font-size:0.65rem;padding:3px 8px;border-radius:20px;font-weight:600">Open-Meteo Live</span>
+      <span class="source-badge" style="background:#0f2a1e;color:#1D9E75;font-size:0.65rem;padding:3px 8px;border-radius:20px;font-weight:600">IMD Climatology</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div class="container-fluid px-3 pb-3">
+  <div class="row g-3">
+
+    <!-- ══ LEFT SIDEBAR ══ -->
+    <div class="col-12 col-lg-3">
+
+      <!-- Storm Risk Scanner -->
+      <div class="ss-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-crosshair me-1"></i>Storm Risk Scanner</div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label style="font-size:0.7rem;color:var(--ss-muted)">Latitude</label>
+            <input id="scan-lat" class="ss-input" type="text" value="13.50" />
+          </div>
+          <div class="col-6">
+            <label style="font-size:0.7rem;color:var(--ss-muted)">Longitude</label>
+            <input id="scan-lon" class="ss-input" type="text" value="85.50" />
+          </div>
+        </div>
+
+        <!-- Presets: coastal storm-prone cities -->
+        <div class="mb-2" style="font-size:0.65rem;color:var(--ss-muted);margin-bottom:4px">Storm-prone zones:</div>
+        <div class="d-flex flex-wrap gap-1 mb-2">
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(13.50, 85.50,'Bay of Bengal')">Bay of Bengal</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(15.00, 70.00,'Arabian Sea')">Arabian Sea</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(13.08, 80.27,'Chennai')">Chennai</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(20.26, 85.83,'Bhubaneswar')">Bhubaneswar</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(19.07, 72.87,'Mumbai')">Mumbai</button>
+        </div>
+
+        <button id="scan-btn" class="ss-btn" style="background:#0c2d4a;border-color:#378ADD">
+          <i class="bi bi-cloud-lightning me-1"></i>Predict Storm Risk
+        </button>
+
+        <div id="scan-result" class="mt-2" style="font-size:0.78rem;color:var(--ss-muted);text-align:center">
+          Select a zone or enter coordinates
+        </div>
+      </div>
+
+      <!-- Marine Conditions -->
+      <div class="ss-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-water me-1"></i>Marine Conditions</div>
+        <div id="marine-panel" style="font-size:0.78rem;color:var(--ss-muted)">Run a scan to load marine data</div>
+      </div>
+
+      <!-- Category Guide -->
+      <div class="ss-card">
+        <div class="ss-card-title"><i class="bi bi-info-circle me-1"></i>IMD Storm Scale</div>
+        <div style="font-size:0.78rem;line-height:2.2">
+          <div><span class="cat-badge cat-LPA me-2">LPA</span>Low Pressure — &lt;31 km/h</div>
+          <div><span class="cat-badge cat-D me-2">D</span>Depression — 31–61 km/h</div>
+          <div><span class="cat-badge cat-DD me-2">DD</span>Deep Depression — 62–88 km/h</div>
+          <div><span class="cat-badge cat-CS me-2">CS</span>Cyclonic Storm — 89–117 km/h</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══ CENTRE: MAP + PANELS ══ -->
+    <div class="col-12 col-lg-6">
+
+      <!-- Map -->
+      <div class="ss-card p-0 mb-3" style="overflow:hidden">
+        <div id="storm-map" style="height:400px"></div>
+      </div>
+
+      <!-- Row: Active Systems + Climatology -->
+      <div class="row g-3">
+        <div class="col-12 col-md-7">
+          <div class="ss-card h-100">
+            <div class="ss-card-title d-flex justify-content-between">
+              <span><i class="bi bi-broadcast me-1"></i>Active Systems</span>
+              <button onclick="refreshStorms()" style="background:none;border:none;color:var(--ss-muted);cursor:pointer;font-size:0.8rem">⟳ Refresh</button>
+            </div>
+            <div id="storm-list">
+              <div style="color:var(--ss-muted);font-size:0.8rem">Loading storm systems...</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-5">
+          <div class="ss-card h-100">
+            <div class="ss-card-title"><i class="bi bi-bar-chart me-1"></i>Monthly Climatology</div>
+            <div id="clim-bars" class="clim-bars"></div>
+            <div id="clim-months" style="display:flex;gap:4px;margin-top:3px"></div>
+            <div style="font-size:0.65rem;color:var(--ss-muted);margin-top:4px">Avg storms/month (IMD historical)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ RIGHT SIDEBAR ══ -->
+    <div class="col-12 col-lg-3">
+
+      <!-- Risk Factors -->
+      <div class="ss-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-list-check me-1"></i>Risk Factors</div>
+        <div id="factor-list" style="font-size:0.78rem;color:var(--ss-muted)">Run a scan to see contributing factors</div>
+      </div>
+
+      <!-- Stats -->
+      <div class="ss-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-graph-up me-1"></i>Storm Stats</div>
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="stat-val" style="color:#378ADD">BoB</div>
+            <div class="stat-lbl">Most active basin</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val" style="color:#EF9F27">Nov</div>
+            <div class="stat-lbl">Peak month</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val" style="color:#1D9E75">5–6</div>
+            <div class="stat-lbl">Avg systems/year</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val" style="color:#D4537E">2</div>
+            <div class="stat-lbl">Basins monitored</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Risk Meter -->
+      <div class="ss-card">
+        <div class="ss-card-title"><i class="bi bi-shield me-1"></i>Location Risk</div>
+        <div class="risk-meter-wrap mt-1">
+          <div class="risk-label">
+            <span style="color:var(--ss-storm)"><i class="bi bi-cloud-lightning me-1"></i>Storm</span>
+            <span id="pill-storm" class="risk-pill pill-none">—</span>
+          </div>
+          <div class="risk-bar-bg"><div id="meter-storm" class="risk-bar-fill fill-storm" style="width:0%"></div></div>
+        </div>
+        <div class="risk-meter-wrap">
+          <div class="risk-label">
+            <span style="color:var(--ss-muted)"><i class="bi bi-droplet me-1"></i>Flood</span>
+            <span id="pill-flood" class="risk-pill pill-none">—</span>
+          </div>
+          <div class="risk-bar-bg"><div id="meter-flood" class="risk-bar-fill fill-tsunami" style="width:0%"></div></div>
+        </div>
+        <div style="font-size:0.68rem;color:var(--ss-muted);margin-top:8px">
+          Flood risk via Open-Meteo precipitation data
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer class="ss-footer text-center mt-2">
+  SeismoSense India · Storm Module (Phase 2) · Open-Meteo Marine API · IMD Climatology
+</footer>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+<script>
+const API = "http://localhost:8000";
+let stormMap, markerGroup, trackGroup;
+
+// ── Clock ────────────────────────────────────────────────────
+function startClock() {
+  const el = document.getElementById("ss-clock");
+  if (el) setInterval(() => { el.textContent = new Date().toUTCString().slice(0,25)+" UTC"; }, 1000);
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+function preset(lat, lon, name) {
+  document.getElementById("scan-lat").value = lat;
+  document.getElementById("scan-lon").value = lon;
+}
+
+function riskClass(level) {
+  const l = (level||"").toLowerCase();
+  if (l === "high")     return "pill-high";
+  if (l === "moderate") return "pill-mod";
+  return "pill-low";
+}
+
+function catClass(code) {
+  return "cat-" + (code || "LPA");
+}
+
+// ── Map init ─────────────────────────────────────────────────
+function initMap() {
+  stormMap = L.map("storm-map", { center: [15.0, 80.0], zoom: 5 });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors", maxZoom: 18,
+  }).addTo(stormMap);
+  markerGroup = L.layerGroup().addTo(stormMap);
+  trackGroup  = L.layerGroup().addTo(stormMap);
+}
+
+// ── Storm icons & tracks ─────────────────────────────────────
+function renderStormsOnMap(storms) {
+  markerGroup.clearLayers();
+  trackGroup.clearLayers();
+
+  storms.forEach(s => {
+    // Storm centre marker
+    const circle = L.circleMarker([s.lat, s.lon], {
+      radius: 8 + s.severity * 3,
+      color: s.color, fillColor: s.color,
+      fillOpacity: 0.5, weight: 2, opacity: 0.9,
+    });
+
+    circle.bindPopup(`
+      <strong>${s.name}</strong><br>
+      <span style="color:${s.color}">${s.category}</span><br>
+      Wind: <b>${s.wind_kmh} km/h</b><br>
+      Pressure: ${s.pressure_hpa} hPa<br>
+      Movement: ${s.movement}<br>
+      Basin: ${s.basin}<br>
+      Affected: ${(s.affected_states||[]).join(", ")||"—"}
+    `);
+    markerGroup.addLayer(circle);
+
+    // Predicted track polyline
+    if (s.track && s.track.length > 1) {
+      const latlngs = s.track.map(t => [t.lat, t.lon]);
+      const line = L.polyline(latlngs, {
+        color: s.color, weight: 2, opacity: 0.7,
+        dashArray: "6 4",
+      });
+      trackGroup.addLayer(line);
+
+      // Track dots
+      s.track.forEach((t, i) => {
+        if (i === 0) return;
+        const dot = L.circleMarker([t.lat, t.lon], {
+          radius: 3, color: s.color, fillColor: s.color,
+          fillOpacity: 0.6, weight: 1,
+        });
+        trackGroup.addLayer(dot);
+      });
+    }
+  });
+}
+
+// ── Load Active Storms ───────────────────────────────────────
+function refreshStorms() {
+  fetch(`${API}/storm-alerts`)
+    .then(r => r.json())
+    .then(data => {
+      const storms = data.data || [];
+      renderStormsOnMap(storms);
+
+      const el = document.getElementById("storm-list");
+      if (!storms.length) {
+        el.innerHTML = '<div style="color:var(--ss-muted);font-size:0.8rem;padding:6px 0">No active systems detected</div>';
+        return;
+      }
+      el.innerHTML = storms.map(s => `
+        <div class="storm-item">
+          <div class="storm-header">
+            <div class="storm-dot" style="background:${s.color}"></div>
+            <div class="storm-name">${s.name}</div>
+            <span class="cat-badge ${catClass(s.category_code)}">${s.category_code||"—"}</span>
+          </div>
+          <div class="storm-meta">
+            💨 ${s.wind_kmh} km/h &nbsp;·&nbsp; 🌡️ ${s.pressure_hpa} hPa<br>
+            📍 ${s.lat.toFixed(2)}°N, ${s.lon.toFixed(2)}°E &nbsp;·&nbsp; ${s.movement}<br>
+            🌊 ${s.basin} &nbsp;·&nbsp; ${s.season||"—"}
+          </div>
+          ${(s.affected_states||[]).length ? `
+          <div class="storm-states">
+            ${s.affected_states.map(st => `<span class="state-tag">${st}</span>`).join("")}
+          </div>` : ""}
+          ${s.marine && s.marine.wave_height_m != null ? `
+          <div class="marine-row">
+            <div class="marine-chip">${s.marine.wave_height_m.toFixed(1)}<span>Wave ht (m)</span></div>
+            ${s.marine.wind_speed_kmh != null ? `<div class="marine-chip">${s.marine.wind_speed_kmh.toFixed(0)}<span>Wind (km/h)</span></div>` : ""}
+          </div>` : ""}
+        </div>
+      `).join("");
+    })
+    .catch(() => {
+      document.getElementById("storm-list").innerHTML =
+        '<div style="color:#E24B4A;font-size:0.8rem">API unreachable — is the server running?</div>';
+    });
+}
+
+// ── Climatology Chart ────────────────────────────────────────
+function loadClimatology() {
+  fetch(`${API}/storm-climatology`)
+    .then(r => r.json())
+    .then(data => {
+      const bars  = document.getElementById("clim-bars");
+      const mnths = document.getElementById("clim-months");
+      if (!data.data || !bars) return;
+
+      const maxVal = Math.max(...data.data.map(d => d.avg_storms));
+      bars.innerHTML  = "";
+      mnths.innerHTML = "";
+      const now_month = new Date().getMonth() + 1;
+
+      data.data.forEach(d => {
+        const pct  = Math.round((d.avg_storms / maxVal) * 100);
+        const peak = d.avg_storms >= 1.8;
+        const isCur = d.month_num === now_month;
+
+        const col = document.createElement("div");
+        col.className = "clim-col";
+
+        const bar = document.createElement("div");
+        bar.className = "clim-bar";
+        bar.style.height     = pct + "%";
+        bar.style.background = peak ? "#378ADD" : isCur ? "#EF9F27" : "var(--ss-surface2)";
+        bar.style.border     = isCur ? "1px solid #EF9F27" : "none";
+        bar.title = `${d.month}: avg ${d.avg_storms} storms`;
+        col.appendChild(bar);
+
+        const lbl = document.createElement("div");
+        lbl.className = "clim-month";
+        lbl.textContent = d.month.slice(0, 3);
+        col.appendChild(lbl);
+
+        bars.appendChild(col);
+      });
+    })
+    .catch(console.warn);
+}
+
+// ── Scan Risk ────────────────────────────────────────────────
+function scanStormRisk() {
+  const lat = parseFloat(document.getElementById("scan-lat").value);
+  const lon = parseFloat(document.getElementById("scan-lon").value);
+  if (isNaN(lat) || isNaN(lon)) { return; }
+
+  document.getElementById("scan-result").innerHTML =
+    '<div style="color:var(--ss-muted);font-size:0.8rem">Scanning — fetching marine data...</div>';
+
+  const body = JSON.stringify({ lat, lon });
+  const hdrs = { "Content-Type": "application/json" };
+
+  Promise.all([
+    fetch(`${API}/predict_storm`,  { method:"POST", headers:hdrs, body }).then(r=>r.json()),
+    fetch(`${API}/flood-risk`,     { method:"POST", headers:hdrs, body }).then(r=>r.json()),
+  ])
+  .then(([storm, flood]) => {
+    // Update meters
+    const sp  = document.getElementById("pill-storm");
+    const sm  = document.getElementById("meter-storm");
+    const fp  = document.getElementById("pill-flood");
+    const fm  = document.getElementById("meter-flood");
+    if (sp) { sp.textContent = storm.risk_level; sp.className = `risk-pill ${riskClass(storm.risk_level)}`; }
+    if (sm)   sm.style.width = Math.round(storm.probability * 100) + "%";
+    if (fp) { fp.textContent = flood.risk_level; fp.className = `risk-pill ${riskClass(flood.risk_level)}`; }
+    if (fm)   fm.style.width = Math.round((flood.probability||0) * 100) + "%";
+
+    // Scan result summary
+    document.getElementById("scan-result").innerHTML = `
+      <div class="stat-grid mt-1">
+        <div class="stat-item">
+          <div class="stat-val"><span class="risk-pill ${riskClass(storm.risk_level)}">${storm.risk_level}</span></div>
+          <div class="stat-lbl">Storm risk</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:#378ADD">${(storm.probability*100).toFixed(0)}%</div>
+          <div class="stat-lbl">Probability</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val"><span class="risk-pill ${riskClass(flood.risk_level)}">${flood.risk_level}</span></div>
+          <div class="stat-lbl">Flood risk</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:#EF9F27">${storm.season||"—"}</div>
+          <div class="stat-lbl">Season</div>
+        </div>
+      </div>
+    `;
+
+    // Marine panel
+    if (storm.marine) {
+      const m = storm.marine;
+      document.getElementById("marine-panel").innerHTML = `
+        <div class="marine-row">
+          ${m.wave_height_m != null ? `<div class="marine-chip">${m.wave_height_m.toFixed(1)} m<span>Wave height</span></div>` : ""}
+          ${m.wind_wave_height_m != null ? `<div class="marine-chip">${m.wind_wave_height_m.toFixed(1)} m<span>Wind wave ht</span></div>` : ""}
+          ${m.wind_speed_kmh != null ? `<div class="marine-chip">${m.wind_speed_kmh.toFixed(0)} km/h<span>Sea wind speed</span></div>` : ""}
+          ${m.surface_pressure_hpa != null ? `<div class="marine-chip">${m.surface_pressure_hpa} hPa<span>Surface pressure</span></div>` : ""}
+        </div>
+        <div style="font-size:0.68rem;color:var(--ss-muted);margin-top:6px">Source: ${m.source||"open-meteo-marine"}</div>
+      `;
+    } else {
+      document.getElementById("marine-panel").innerHTML =
+        '<div style="color:var(--ss-muted);font-size:0.78rem">Marine data unavailable (API may be offline)</div>';
+    }
+
+    // Factor list
+    const factors = storm.factors || [];
+    const el = document.getElementById("factor-list");
+    if (!factors.length) { el.innerHTML = '<div style="color:var(--ss-muted)">No factors returned</div>'; return; }
+    el.innerHTML = factors.map(f => `
+      <div class="factor-item"><div class="factor-dot"></div><span>${f}</span></div>
+    `).join("");
+
+    // Drop pin on map
+    markerGroup.addLayer(
+      L.circleMarker([lat, lon], { radius: 6, color: "#EF9F27", fillColor: "#EF9F27", fillOpacity: 0.9, weight: 2 })
+        .bindPopup(`<b>Scan point</b><br>Storm: ${storm.risk_level} (${(storm.probability*100).toFixed(0)}%)`)
+    );
+    stormMap.setView([lat, lon], 6);
+  })
+  .catch(() => {
+    document.getElementById("scan-result").innerHTML =
+      '<div style="color:#E24B4A;font-size:0.78rem">API unreachable — is the server running?</div>';
+  });
+}
+
+// ── Boot ─────────────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", () => {
+  initMap();
+  refreshStorms();
+  loadClimatology();
+  startClock();
+
+  document.getElementById("scan-btn").addEventListener("click", scanStormRisk);
+  ["scan-lat","scan-lon"].forEach(id => {
+    document.getElementById(id)?.addEventListener("keyup", e => { if(e.key==="Enter") scanStormRisk(); });
+  });
+
+  // Auto-refresh active storms every 30s
+  setInterval(refreshStorms, 30000);
+});
+</script>
+</body>
+</html>

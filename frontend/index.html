@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SeismoSense — India Disaster Intelligence</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Custom -->
+  <link rel="stylesheet" href="static/css/style.css" />
+</head>
+<body>
+
+<!-- ── NAVBAR ─────────────────────────────────────────────── -->
+<nav class="navbar ss-navbar sticky-top px-3 py-2">
+  <div class="d-flex align-items-center gap-2">
+    <span style="color:#1D9E75;font-size:1.2rem">🌐</span>
+    <span class="navbar-brand mb-0">SeismoSense <span style="color:#1D9E75;font-weight:400">India</span></span>
+  </div>
+
+  <ul class="nav d-none d-md-flex gap-1">
+    <li class="nav-item"><a class="nav-link active" href="index.html"><i class="bi bi-activity me-1"></i>Dashboard</a></li>
+    <li class="nav-item"><a class="nav-link" href="earthquake.html"><i class="bi bi-geo me-1"></i>Earthquake</a></li>
+    <li class="nav-item"><a class="nav-link" href="storm.html"><i class="bi bi-cloud-lightning me-1"></i>Storm</a></li>
+    <li class="nav-item"><a class="nav-link" href="cyclone.html"><i class="bi bi-wind me-1"></i>Cyclone</a></li>
+  </ul>
+
+  <div class="d-flex align-items-center gap-3">
+    <span id="ss-clock" class="ss-clock d-none d-lg-block">—</span>
+    <div class="live-indicator"><div class="live-dot"></div> LIVE</div>
+  </div>
+</nav>
+
+<!-- ── MAIN LAYOUT ───────────────────────────────────────── -->
+<div class="container-fluid px-3 py-3">
+  <div class="row g-3">
+
+    <!-- ════ LEFT SIDEBAR ════ -->
+    <div class="col-12 col-lg-3">
+
+      <!-- Risk Overview -->
+      <div class="ss-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-shield-exclamation me-1"></i>Risk Overview</div>
+
+        <div class="risk-meter-wrap">
+          <div class="risk-label">
+            <span><i class="bi bi-geo me-1" style="color:#1D9E75"></i>Earthquake</span>
+            <span id="pill-eq" class="risk-pill pill-none">—</span>
+          </div>
+          <div class="risk-bar-bg"><div id="meter-eq" class="risk-bar-fill fill-eq" style="width:0%"></div></div>
+        </div>
+
+        <div class="risk-meter-wrap">
+          <div class="risk-label">
+            <span><i class="bi bi-water me-1" style="color:#D4537E"></i>Tsunami</span>
+            <span id="pill-tsunami" class="risk-pill pill-none">—</span>
+          </div>
+          <div class="risk-bar-bg"><div id="meter-tsunami" class="risk-bar-fill fill-tsunami" style="width:0%"></div></div>
+        </div>
+
+        <div class="risk-meter-wrap">
+          <div class="risk-label">
+            <span><i class="bi bi-cloud-lightning me-1" style="color:#378ADD"></i>Storm</span>
+            <span id="pill-storm" class="risk-pill pill-none">—</span>
+          </div>
+          <div class="risk-bar-bg"><div id="meter-storm" class="risk-bar-fill fill-storm" style="width:0%"></div></div>
+        </div>
+
+        <div class="risk-meter-wrap">
+          <div class="risk-label">
+            <span><i class="bi bi-wind me-1" style="color:#EF9F27"></i>Cyclone</span>
+            <span id="pill-cyclone" class="risk-pill pill-none">—</span>
+          </div>
+          <div class="risk-bar-bg"><div id="meter-cyclone" class="risk-bar-fill fill-cyclone" style="width:0%"></div></div>
+        </div>
+        <div class="risk-meter-wrap mb-0">
+          <div class="risk-label">
+            <span><i class="bi bi-droplet me-1" style="color:#D4537E"></i>Flood</span>
+            <span id="pill-flood" class="risk-pill pill-none">—</span>
+          </div>
+          <div class="risk-bar-bg"><div id="meter-flood" class="risk-bar-fill fill-tsunami" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Location Risk Scanner -->
+      <div class="ss-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-crosshair me-1"></i>Location Risk Scanner</div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label style="font-size:0.7rem;color:var(--ss-muted)">Latitude</label>
+            <input id="scan-lat" class="ss-input" type="text" value="22.57" placeholder="22.57" />
+          </div>
+          <div class="col-6">
+            <label style="font-size:0.7rem;color:var(--ss-muted)">Longitude</label>
+            <input id="scan-lon" class="ss-input" type="text" value="88.36" placeholder="88.36" />
+          </div>
+        </div>
+
+        <!-- Quick presets -->
+        <div class="d-flex flex-wrap gap-1 mb-2">
+          <button class="btn btn-sm" style="font-size:0.65rem;padding:2px 8px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)"
+            onclick="document.getElementById('scan-lat').value='28.61';document.getElementById('scan-lon').value='77.20'">Delhi</button>
+          <button class="btn btn-sm" style="font-size:0.65rem;padding:2px 8px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)"
+            onclick="document.getElementById('scan-lat').value='19.07';document.getElementById('scan-lon').value='72.87'">Mumbai</button>
+          <button class="btn btn-sm" style="font-size:0.65rem;padding:2px 8px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)"
+            onclick="document.getElementById('scan-lat').value='13.08';document.getElementById('scan-lon').value='80.27'">Chennai</button>
+          <button class="btn btn-sm" style="font-size:0.65rem;padding:2px 8px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)"
+            onclick="document.getElementById('scan-lat').value='22.57';document.getElementById('scan-lon').value='88.36'">Kolkata</button>
+        </div>
+
+        <button id="scan-btn" class="ss-btn">
+          <i class="bi bi-search me-1"></i>Scan All Hazards
+        </button>
+        <div id="scan-result" class="mt-2" style="font-size:0.78rem;color:var(--ss-muted);text-align:center">
+          Select a city or enter coordinates
+        </div>
+      </div>
+
+      <!-- Data Sources -->
+      <div class="ss-card">
+        <div class="ss-card-title"><i class="bi bi-database me-1"></i>Data Sources</div>
+        <div style="font-size:0.78rem;line-height:2">
+          <div><span class="source-badge sb-usgs me-2">USGS</span>Earthquake — Live ✓</div>
+          <div><span class="source-badge sb-synthetic me-2" style="background:#1a2438;color:#378ADD">IMD</span>Storm / Cyclone — Phase 2</div>
+          <div><span class="source-badge sb-synthetic me-2" style="background:#2a0f1e;color:#D4537E">INCOIS</span>Tsunami — Phase 4</div>
+        </div>
+        <div class="mt-2" style="font-size:0.68rem;color:var(--ss-muted)">
+          Earthquake source: <span id="eq-source" class="source-badge sb-synthetic">loading</span>
+        </div>
+      </div>
+
+    </div><!-- /sidebar -->
+
+    <!-- ════ CENTRE: MAP + BOTTOM PANELS ════ -->
+    <div class="col-12 col-lg-6">
+
+      <!-- Map -->
+      <div class="ss-card p-0 mb-3" style="overflow:hidden">
+        <div id="main-map"></div>
+      </div>
+
+      <!-- Bottom row -->
+      <div class="row g-3">
+
+        <!-- Live Event -->
+        <div class="col-12 col-md-6">
+          <div class="ss-card h-100">
+            <div class="ss-card-title d-flex justify-content-between">
+              <span><i class="bi bi-broadcast me-1"></i>Latest Event</span>
+              <span style="font-size:0.65rem;color:var(--ss-muted)">auto-refreshes 10s</span>
+            </div>
+            <div id="live-event">
+              <div style="color:var(--ss-muted);font-size:0.8rem">Fetching...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8-Week Trend -->
+        <div class="col-12 col-md-6">
+          <div class="ss-card h-100">
+            <div class="ss-card-title"><i class="bi bi-bar-chart me-1"></i>8-Week Seismic Trend</div>
+            <div id="trend-bars" class="trend-bars">
+              <div class="trend-bar" style="height:30%;background:#1D9E75"></div>
+            </div>
+            <div id="trend-labels" class="trend-labels"></div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /centre -->
+
+    <!-- ════ RIGHT SIDEBAR ════ -->
+    <div class="col-12 col-lg-3">
+
+      <!-- Active Alerts -->
+      <div class="ss-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-bell me-1"></i>Active Alerts</div>
+        <div id="alert-feed">
+          <div style="color:var(--ss-muted);font-size:0.8rem">Loading alerts...</div>
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="ss-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-graph-up me-1"></i>Model Stats</div>
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="stat-val" style="color:#1D9E75">215k</div>
+            <div class="stat-lbl">Training records</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val" style="color:#378ADD">M2.5+</div>
+            <div class="stat-lbl">Min magnitude tracked</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val" style="color:#EF9F27">500km</div>
+            <div class="stat-lbl">Activity radius</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val" style="color:#D4537E">3</div>
+            <div class="stat-lbl">Hazard modules</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hazard Guide -->
+      <div class="ss-card">
+        <div class="ss-card-title"><i class="bi bi-info-circle me-1"></i>India Hazard Zones</div>
+        <div style="font-size:0.78rem;color:var(--ss-muted);line-height:1.8">
+          <div>🔴 <strong style="color:var(--ss-text)">Himalayan Belt</strong> — High seismic zone IV–V</div>
+          <div>🟠 <strong style="color:var(--ss-text)">Deccan Plateau</strong> — Moderate zone III</div>
+          <div>🌊 <strong style="color:var(--ss-text)">Andaman</strong> — Tsunami-prone, zone V</div>
+          <div>🌀 <strong style="color:var(--ss-text)">Bay of Bengal</strong> — Oct–Dec cyclone season</div>
+          <div>⛈️ <strong style="color:var(--ss-text)">Arabian Sea</strong> — May–Jun storm season</div>
+        </div>
+      </div>
+
+    </div><!-- /right sidebar -->
+  </div><!-- /row -->
+</div><!-- /container -->
+
+<!-- ── FOOTER ─────────────────────────────────────────────── -->
+<footer class="ss-footer text-center mt-3">
+  SeismoSense India · Phase 1 · Data: USGS FDSNWS &amp; IMD (pending) &amp; INCOIS (pending) · College Project
+</footer>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<script src="static/js/map.js"></script>
+
+</body>
+</html>
