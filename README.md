@@ -8,7 +8,7 @@ A Python + Flask + Bootstrap 5 web app predicting Earthquake, Tsunami, Storm, Cy
 |---|---|---|
 | Phase 1 | Earthquake + Tsunami (USGS live data) | ✅ Complete |
 | Phase 2 | Storm Detection (Open-Meteo marine API) | ✅ Complete |
-| Phase 3 | Cyclone Prediction (IMD Best Track) | 🔜 Next |
+| Phase 3 | Cyclone Prediction (IMD Best Track) | ✅ Complete |
 | Phase 4 | Flood + Live deployment + INCOIS | 🔜 Planned |
 
 ## Quick Start

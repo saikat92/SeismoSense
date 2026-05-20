@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SeismoSense — Cyclone Detection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="static/css/style.css" />
+
+  <style>
+    /* ── Cyclone-page extras ── */
+    :root {
+      --cy-cs:   #EF9F27;
+      --cy-scs:  #E24B4A;
+      --cy-vscs: #A32D2D;
+      --cy-escs: #7a1010;
+      --cy-sucs: #4a0505;
+    }
+
+    .cy-card {
+      background: var(--ss-surface);
+      border: 1px solid var(--ss-border);
+      border-top: 3px solid var(--ss-cyclone);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      height: 100%;
+    }
+
+    /* IMD category badges */
+    .imd-badge {
+      font-size: 0.62rem; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px;
+      text-transform: uppercase; letter-spacing: 0.07em;
+    }
+    .imd-CS   { background: #2a1a06; color: var(--cy-cs); }
+    .imd-SCS  { background: #2d1010; color: var(--cy-scs); }
+    .imd-VSCS { background: #3d1010; color: #cf6060; }
+    .imd-ESCS { background: #4a0a0a; color: #e08080; }
+    .imd-SuCS { background: #5a0505; color: #ffaaaa; }
+
+    /* Saffir-Simpson dots */
+    .saffir-row { display:flex; gap:4px; align-items:center; margin-top:4px; }
+    .saffir-dot {
+      width:12px; height:12px; border-radius:50%;
+      border: 1.5px solid var(--ss-border);
+    }
+    .saffir-dot.active { border-color: transparent; }
+
+    /* Cyclone list item */
+    .cy-item {
+      background: var(--ss-surface2);
+      border: 1px solid var(--ss-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    .cy-item:last-child { margin-bottom: 0; }
+    .cy-header { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+    .cy-dot { width:11px; height:11px; border-radius:50%; flex-shrink:0; }
+    .cy-name { font-size:0.86rem; font-weight:600; color:var(--ss-text); flex:1; }
+    .cy-meta { font-size:0.72rem; color:var(--ss-muted); line-height:1.8; }
+
+    /* Landfall card */
+    .landfall-card {
+      background: #1a0a0a;
+      border: 1px solid #4a1010;
+      border-radius: 7px;
+      padding: 8px 10px;
+      margin-top: 7px;
+    }
+    .landfall-label { font-size:0.65rem; color:#7a3030; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:3px; }
+    .landfall-val { font-size:0.8rem; color:#cf8080; font-weight:500; }
+
+    /* Surge bar */
+    .surge-bar-bg { height:4px; background:var(--ss-surface); border-radius:2px; overflow:hidden; margin-top:4px; }
+    .surge-bar-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,#378ADD,#D4537E,#E24B4A); }
+
+    /* Atmospheric panel chips */
+    .atmo-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px; }
+    .atmo-chip {
+      background: var(--ss-surface2);
+      border: 1px solid var(--ss-border);
+      border-radius: 6px;
+      padding: 6px 9px;
+      font-size: 0.75rem;
+      color: var(--ss-text);
+    }
+    .atmo-chip span { color:var(--ss-muted); font-size:0.65rem; display:block; margin-top:1px; }
+
+    /* Dual-bar climatology */
+    .clim2-wrap { display:flex; align-items:flex-end; gap:3px; height:80px; }
+    .clim2-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; }
+    .clim2-bars { display:flex; gap:1px; align-items:flex-end; height:100%; width:100%; }
+    .clim2-bar { flex:1; border-radius:2px 2px 0 0; min-height:2px; transition:height 0.4s ease; }
+    .clim2-lbl { font-size:0.5rem; color:var(--ss-muted); }
+
+    /* History table */
+    .hist-row {
+      display:flex; align-items:center; gap:8px;
+      padding:6px 0; border-bottom:1px solid var(--ss-border);
+      cursor:pointer; transition: background 0.15s;
+    }
+    .hist-row:last-child { border-bottom:none; }
+    .hist-row:hover { background: var(--ss-surface2); border-radius:4px; padding-left:4px; }
+    .hist-name { font-size:0.8rem; font-weight:500; color:var(--ss-text); flex:1; }
+    .hist-year { font-size:0.7rem; color:var(--ss-muted); }
+    .hist-wind { font-size:0.72rem; color:var(--ss-cyclone); min-width:55px; text-align:right; }
+
+    /* Factor list */
+    .factor-item {
+      font-size:0.78rem; color:var(--ss-text); padding:4px 0;
+      border-bottom:1px solid var(--ss-border);
+      display:flex; gap:6px; align-items:flex-start;
+    }
+    .factor-item:last-child { border-bottom:none; }
+    .factor-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; margin-top:6px; background:var(--ss-cyclone); }
+
+    /* Spiral animation on the map icon */
+    @keyframes cy-spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    .cy-spinner { animation: cy-spin 4s linear infinite; transform-origin: center; }
+
+    /* Tab buttons */
+    .cy-tabs { display:flex; gap:4px; margin-bottom:10px; }
+    .cy-tab {
+      font-size:0.75rem; padding:4px 12px; border-radius:6px;
+      border:1px solid var(--ss-border); background:transparent;
+      color:var(--ss-muted); cursor:pointer; font-family:inherit; transition:all 0.2s;
+    }
+    .cy-tab.active { background:var(--ss-surface2); color:#e8f0ff; border-color:var(--ss-cyclone); }
+  </style>
+</head>
+<body>
+
+<!-- ── NAVBAR ── -->
+<nav class="navbar ss-navbar sticky-top px-3 py-2">
+  <div class="d-flex align-items-center gap-2">
+    <span style="color:#1D9E75;font-size:1.2rem">🌐</span>
+    <span class="navbar-brand mb-0">SeismoSense <span style="color:#1D9E75;font-weight:400">India</span></span>
+  </div>
+  <ul class="nav d-none d-md-flex gap-1">
+    <li class="nav-item"><a class="nav-link" href="index.html"><i class="bi bi-activity me-1"></i>Dashboard</a></li>
+    <li class="nav-item"><a class="nav-link" href="earthquake.html"><i class="bi bi-geo me-1"></i>Earthquake</a></li>
+    <li class="nav-item"><a class="nav-link" href="storm.html"><i class="bi bi-cloud-lightning me-1"></i>Storm</a></li>
+    <li class="nav-item"><a class="nav-link active" href="cyclone.html"><i class="bi bi-wind me-1"></i>Cyclone</a></li>
+    <li class="nav-item"><a class="nav-link active" href="flood.html"><i class="bi bi-droplet-half me-1"></i>Flood</a></li>
+
+  </ul>
+  <div class="d-flex align-items-center gap-3">
+    <span id="ss-clock" class="ss-clock d-none d-lg-block">—</span>
+    <div class="live-indicator"><div class="live-dot"></div> LIVE</div>
+  </div>
+</nav>
+
+<!-- ── PAGE HEADER ── -->
+<div class="container-fluid px-3 pt-3 pb-1">
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <div>
+      <h5 class="mb-0" style="color:#e8f0ff">
+        <i class="bi bi-wind me-2" style="color:var(--ss-cyclone)"></i>Cyclone Detection Module
+      </h5>
+      <small style="color:var(--ss-muted)">
+        IMD Best Track 1990–2023 · Open-Meteo atmospheric data · Physics-informed track simulation
+      </small>
+    </div>
+    <div class="ms-auto d-flex gap-2 flex-wrap">
+      <span style="font-size:0.65rem;padding:3px 9px;border-radius:20px;font-weight:600;background:#2a1f0a;color:#EF9F27;">IMD Best Track</span>
+      <span style="font-size:0.65rem;padding:3px 9px;border-radius:20px;font-weight:600;background:#0e1a28;color:#378ADD;">Open-Meteo Atmo</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN LAYOUT ── -->
+<div class="container-fluid px-3 pb-3">
+  <div class="row g-3">
+
+    <!-- ════ LEFT SIDEBAR ════ -->
+    <div class="col-12 col-lg-3">
+
+      <!-- Scanner -->
+      <div class="cy-card mb-3" style="height:auto">
+        <div class="ss-card-title"><i class="bi bi-crosshair me-1"></i>Cyclone Risk Scanner</div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label style="font-size:0.7rem;color:var(--ss-muted)">Latitude</label>
+            <input id="scan-lat" class="ss-input" type="text" value="13.50" />
+          </div>
+          <div class="col-6">
+            <label style="font-size:0.7rem;color:var(--ss-muted)">Longitude</label>
+            <input id="scan-lon" class="ss-input" type="text" value="85.50" />
+          </div>
+        </div>
+
+        <div class="mb-1" style="font-size:0.65rem;color:var(--ss-muted)">High-risk zones:</div>
+        <div class="d-flex flex-wrap gap-1 mb-2">
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(20.0,86.5,'Odisha coast')">Odisha</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(15.9,80.6,'Andhra coast')">Andhra</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(22.3,69.7,'Gujarat coast')">Gujarat</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(21.9,87.9,'WB coast')">West Bengal</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(12.0,92.8,'Andaman')">Andaman</button>
+        </div>
+
+        <button id="scan-btn" class="ss-btn mb-3" style="background:#1a1206;border-color:var(--ss-cyclone);color:#e8f0ff;">
+          <i class="bi bi-wind me-1"></i>Predict Cyclone Risk
+        </button>
+        <div id="scan-result" style="font-size:0.78rem;color:var(--ss-muted);text-align:center">
+          Select a coast or enter coordinates
+        </div>
+      </div>
+
+      <!-- Risk + Atmospheric -->
+      <div class="cy-card mb-3" style="height:auto">
+        <div class="ss-card-title"><i class="bi bi-shield me-1"></i>Location Risk</div>
+        <div class="risk-meter-wrap mt-1">
+          <div class="risk-label">
+            <span style="color:var(--ss-cyclone)"><i class="bi bi-wind me-1"></i>Cyclone</span>
+            <span id="pill-cyclone" class="risk-pill pill-none">—</span>
+          </div>
+          <div class="risk-bar-bg"><div id="meter-cyclone" class="risk-bar-fill fill-cyclone" style="width:0%"></div></div>
+        </div>
+        <div class="risk-meter-wrap mb-1">
+          <div class="risk-label">
+            <span style="color:var(--ss-storm)"><i class="bi bi-cloud-lightning me-1"></i>Storm</span>
+            <span id="pill-storm" class="risk-pill pill-none">—</span>
+          </div>
+          <div class="risk-bar-bg"><div id="meter-storm" class="risk-bar-fill fill-storm" style="width:0%"></div></div>
+        </div>
+        <div class="ss-card-title mt-2"><i class="bi bi-thermometer me-1"></i>Atmospheric Conditions</div>
+        <div id="atmo-panel" style="font-size:0.78rem;color:var(--ss-muted)">Run a scan to load data</div>
+      </div>
+
+      <!-- IMD Scale Reference -->
+      <div class="cy-card" style="height:auto">
+        <div class="ss-card-title"><i class="bi bi-info-circle me-1"></i>IMD Cyclone Scale</div>
+        <div style="font-size:0.77rem;line-height:2.1">
+          <div><span class="imd-badge imd-CS me-2">CS</span>89–117 km/h &nbsp;·&nbsp; Surge ~1.5m</div>
+          <div><span class="imd-badge imd-SCS me-2">SCS</span>118–167 km/h · Surge ~2.5m</div>
+          <div><span class="imd-badge imd-VSCS me-2">VSCS</span>168–221 km/h · Surge ~4m</div>
+          <div><span class="imd-badge imd-ESCS me-2">ESCS</span>222–279 km/h · Surge ~6m</div>
+          <div><span class="imd-badge imd-SuCS me-2">SuCS</span>≥280 km/h &nbsp;·&nbsp; Surge ~9m</div>
+        </div>
+      </div>
+
+    </div><!-- /left sidebar -->
+
+    <!-- ════ CENTRE: MAP + PANELS ════ -->
+    <div class="col-12 col-lg-6">
+
+      <!-- Map -->
+      <div class="cy-card p-0 mb-3" style="overflow:hidden;height:auto">
+        <div id="cyclone-map" style="height:400px"></div>
+      </div>
+
+      <!-- Tab strip -->
+      <div class="cy-tabs">
+        <button class="cy-tab active" onclick="switchTab('active',this)">Active Systems</button>
+        <button class="cy-tab" onclick="switchTab('history',this)">Historical Tracks</button>
+        <button class="cy-tab" onclick="switchTab('clim',this)">Climatology</button>
+      </div>
+
+      <!-- Panel: Active Systems -->
+      <div id="tab-active">
+        <div id="cy-list">
+          <div style="color:var(--ss-muted);font-size:0.8rem;padding:8px 0">Loading active systems...</div>
+        </div>
+      </div>
+
+      <!-- Panel: Historical Tracks -->
+      <div id="tab-history" style="display:none">
+        <div class="cy-card" style="height:auto">
+          <div class="ss-card-title"><i class="bi bi-clock-history me-1"></i>Named Cyclones — Recent History</div>
+          <div id="hist-list">
+            <div style="color:var(--ss-muted);font-size:0.8rem">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel: Climatology -->
+      <div id="tab-clim" style="display:none">
+        <div class="cy-card" style="height:auto">
+          <div class="ss-card-title"><i class="bi bi-bar-chart me-1"></i>Monthly Cyclone Frequency — BoB vs Arabian Sea (IMD 1990–2023)</div>
+
+          <div class="d-flex gap-3 mb-2" style="font-size:0.72rem;color:var(--ss-muted)">
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#378ADD;margin-right:4px;vertical-align:middle"></span>Bay of Bengal</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#EF9F27;margin-right:4px;vertical-align:middle"></span>Arabian Sea</span>
+          </div>
+
+          <div id="clim2-wrap" class="clim2-wrap"></div>
+          <div id="clim2-months" style="display:flex;gap:3px;margin-top:4px;"></div>
+          <div style="font-size:0.65rem;color:var(--ss-muted);margin-top:4px">Avg systems/month — click bar to highlight</div>
+
+          <!-- Stats row -->
+          <div class="row g-2 mt-2">
+            <div class="col-4">
+              <div class="stat-item text-center">
+                <div class="stat-val" style="color:#378ADD;font-size:1rem">BoB</div>
+                <div class="stat-lbl">Primary basin</div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="stat-item text-center">
+                <div class="stat-val" style="color:#EF9F27;font-size:1rem">Oct–Dec</div>
+                <div class="stat-lbl">Peak season</div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="stat-item text-center">
+                <div class="stat-val" style="color:#1D9E75;font-size:1rem">~5/yr</div>
+                <div class="stat-lbl">India avg</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /centre -->
+
+    <!-- ════ RIGHT SIDEBAR ════ -->
+    <div class="col-12 col-lg-3">
+
+      <!-- Landfall ETA -->
+      <div class="cy-card mb-3" style="height:auto">
+        <div class="ss-card-title"><i class="bi bi-geo-alt me-1"></i>Landfall Forecast</div>
+        <div id="landfall-panel" style="font-size:0.78rem;color:var(--ss-muted)">
+          No active cyclone selected.<br>Click an active system to see landfall details.
+        </div>
+      </div>
+
+      <!-- Risk Factors -->
+      <div class="cy-card mb-3" style="height:auto">
+        <div class="ss-card-title"><i class="bi bi-list-check me-1"></i>Risk Factors</div>
+        <div id="factor-list" style="font-size:0.78rem;color:var(--ss-muted)">
+          Run a scan to see contributing factors
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="cy-card" style="height:auto">
+        <div class="ss-card-title"><i class="bi bi-graph-up me-1"></i>India Cyclone Stats</div>
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="stat-val" style="color:#EF9F27;font-size:1rem">1.8</div>
+            <div class="stat-lbl">Avg/month (Nov)</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val" style="color:#E24B4A;font-size:1rem">FANI</div>
+            <div class="stat-lbl">Strongest (2019)</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val" style="color:#378ADD;font-size:1rem">Odisha</div>
+            <div class="stat-lbl">Most landfalls</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val" style="color:#1D9E75;font-size:1rem">9m</div>
+            <div class="stat-lbl">Max storm surge</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /right sidebar -->
+  </div>
+</div>
+
+<footer class="ss-footer text-center mt-2">
+  SeismoSense India · Cyclone Module (Phase 3) · IMD Best Track · Open-Meteo Atmospheric API
+</footer>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+const API = "http://localhost:8000";
+let cyMap, markerGroup, trackGroup, scanGroup;
+
+// ── Clock ─────────────────────────────────────────────────────
+function startClock() {
+  const el = document.getElementById("ss-clock");
+  if (el) setInterval(() => { el.textContent = new Date().toUTCString().slice(0,25)+" UTC"; }, 1000);
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function preset(lat, lon, name) {
+  document.getElementById("scan-lat").value = lat;
+  document.getElementById("scan-lon").value = lon;
+}
+
+function riskClass(level) {
+  const l = (level || "").toLowerCase();
+  if (l === "high" || l === "critical" || l === "warning") return "pill-high";
+  if (l === "moderate" || l === "advisory")                return "pill-mod";
+  return "pill-low";
+}
+
+function imdClass(code) {
+  return "imd-" + (code || "CS");
+}
+
+function saffirDots(n) {
+  const colors = ["#EF9F27","#E24B4A","#A32D2D","#7a1010","#4a0505"];
+  return Array.from({length: 5}, (_, i) =>
+    `<div class="saffir-dot${i < n ? " active" : ""}" style="${i < n ? `background:${colors[Math.min(n-1,4)]}` : ""}"></div>`
+  ).join("");
+}
+
+// ── Map init ──────────────────────────────────────────────────
+function initMap() {
+  cyMap = L.map("cyclone-map", { center: [15.0, 80.0], zoom: 5 });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors", maxZoom: 18,
+  }).addTo(cyMap);
+  markerGroup = L.layerGroup().addTo(cyMap);
+  trackGroup  = L.layerGroup().addTo(cyMap);
+  scanGroup   = L.layerGroup().addTo(cyMap);
+
+  // Draw basin zone overlays
+  _drawBasinZones();
+}
+
+function _drawBasinZones() {
+  // Bay of Bengal zone
+  L.rectangle([[5, 80], [23, 100]], {
+    color: "#378ADD", weight: 1, opacity: 0.3,
+    fill: true, fillColor: "#378ADD", fillOpacity: 0.04,
+    dashArray: "6 4",
+  }).addTo(cyMap).bindTooltip("Bay of Bengal", {permanent: false, className: "leaflet-tooltip"});
+
+  // Arabian Sea zone
+  L.rectangle([[5, 55], [25, 78]], {
+    color: "#EF9F27", weight: 1, opacity: 0.3,
+    fill: true, fillColor: "#EF9F27", fillOpacity: 0.04,
+    dashArray: "6 4",
+  }).addTo(cyMap).bindTooltip("Arabian Sea", {permanent: false});
+}
+
+// ── Cyclone marker + track renderer ──────────────────────────
+function renderCyclonesOnMap(cyclones) {
+  markerGroup.clearLayers();
+  trackGroup.clearLayers();
+
+  cyclones.forEach(cy => {
+    // Animated spiral icon via divIcon
+    const icon = L.divIcon({
+      className: "",
+      html: `<div style="
+        width:24px;height:24px;
+        border:2.5px solid ${cy.color};
+        border-radius:50%;
+        border-top-color:transparent;
+        animation:cy-spin 2s linear infinite;
+        box-shadow:0 0 8px ${cy.color}66;
+        display:flex;align-items:center;justify-content:center;
+      "><div style="width:5px;height:5px;border-radius:50%;background:${cy.color}"></div></div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+    });
+
+    const marker = L.marker([cy.lat, cy.lon], { icon });
+
+    const landfallHtml = cy.landfall
+      ? `<br><span style="color:#E24B4A;font-weight:500">⚠ Landfall: ${cy.landfall.state}</span>
+         <br>ETA: ${cy.landfall.eta_hours}h | ${cy.landfall.wind_kmh} km/h | Surge ~${cy.landfall.surge_m}m`
+      : "<br>No landfall projected";
+
+    marker.bindPopup(`
+      <strong style="color:${cy.color}">${cy.name}</strong><br>
+      <span style="font-size:0.8rem;color:${cy.color}">${cy.category}</span><br>
+      💨 <b>${cy.wind_kmh} km/h</b> &nbsp;·&nbsp; 🌡 ${cy.pressure_hpa} hPa<br>
+      📍 ${cy.lat}°N, ${cy.lon}°E<br>
+      🧭 ${cy.movement}<br>
+      🌊 Storm surge: ~${cy.surge_m}m
+      ${landfallHtml}
+    `);
+    markerGroup.addLayer(marker);
+
+    // Colour-coded track: each segment gets the category colour at that point
+    if (cy.track && cy.track.length > 1) {
+      for (let i = 0; i < cy.track.length - 1; i++) {
+        const a = cy.track[i], b = cy.track[i + 1];
+        const seg = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], {
+          color: a.color || cy.color,
+          weight: 3, opacity: 0.8,
+        });
+        trackGroup.addLayer(seg);
+      }
+
+      // Small dots at each track point
+      cy.track.forEach((t, i) => {
+        if (i === 0) return;
+        const dot = L.circleMarker([t.lat, t.lon], {
+          radius: 3,
+          color: t.color || cy.color,
+          fillColor: t.color || cy.color,
+          fillOpacity: 0.7, weight: 1,
+        }).bindTooltip(`T+${t.hour}h: ${t.wind_kmh} km/h | ${t.pressure_hpa} hPa`);
+        trackGroup.addLayer(dot);
+      });
+
+      // Landfall marker
+      if (cy.landfall) {
+        const lf = cy.landfall;
+        const lfIcon = L.divIcon({
+          className: "",
+          html: `<div style="font-size:18px;filter:drop-shadow(0 0 4px #E24B4A)">⚠</div>`,
+          iconSize: [20, 20], iconAnchor: [10, 10],
+        });
+        L.marker([lf.lat, lf.lon], { icon: lfIcon })
+          .bindPopup(`<b>Projected Landfall</b><br>${lf.state}<br>ETA: T+${lf.eta_hours}h<br>${lf.wind_kmh} km/h | Surge ~${lf.surge_m}m`)
+          .addTo(trackGroup);
+      }
+    }
+
+    // Update landfall panel (use first cyclone with landfall)
+    if (cy.landfall) updateLandfallPanel(cy);
+  });
+}
+
+function updateLandfallPanel(cy) {
+  const lf  = cy.landfall;
+  const pct = Math.min((lf.surge_m / 10) * 100, 100);
+  document.getElementById("landfall-panel").innerHTML = `
+    <div style="font-size:0.85rem;font-weight:500;color:${cy.color};margin-bottom:4px">${cy.name}</div>
+    <div class="landfall-card">
+      <div class="landfall-label">Projected landfall</div>
+      <div class="landfall-val">⚠ ${lf.state}</div>
+    </div>
+    <div style="margin-top:8px;font-size:0.72rem;color:var(--ss-muted);line-height:1.9">
+      ETA: <strong style="color:var(--ss-text)">T+${lf.eta_hours} hours</strong><br>
+      Wind at landfall: <strong style="color:${cy.color}">${lf.wind_kmh} km/h</strong><br>
+      Category: <span class="imd-badge ${imdClass(cy.category_code)}">${cy.category_code}</span><br>
+      Pressure: ${lf.pressure_hpa} hPa
+    </div>
+    <div style="margin-top:8px">
+      <div style="font-size:0.68rem;color:var(--ss-muted);margin-bottom:3px">Storm surge estimate: ${lf.surge_m}m</div>
+      <div class="surge-bar-bg"><div class="surge-bar-fill" style="width:${pct}%"></div></div>
+    </div>
+    <div style="font-size:0.65rem;color:var(--ss-muted);margin-top:5px">
+      Source: Physics-informed track model (synthetic Phase 3)<br>
+      Live IMD NWP integration in Phase 4
+    </div>
+  `;
+}
+
+// ── Load active cyclones ──────────────────────────────────────
+function loadActiveCyclones() {
+  fetch(`${API}/cyclone-track`)
+    .then(r => r.json())
+    .then(data => {
+      const cyclones = data.data || [];
+      renderCyclonesOnMap(cyclones);
+
+      const el = document.getElementById("cy-list");
+      if (!cyclones.length) {
+        el.innerHTML = `
+          <div class="cy-card" style="height:auto">
+            <div style="font-size:0.8rem;color:var(--ss-muted);padding:6px 0">
+              No active cyclone systems this month.<br>
+              <span style="font-size:0.72rem">Cyclone season: Oct–Dec (BoB) · May–Jun (AS)</span>
+            </div>
+          </div>`;
+        return;
+      }
+
+      el.innerHTML = cyclones.map(cy => `
+        <div class="cy-card mb-2" style="height:auto;cursor:pointer;border-top-color:${cy.color}"
+             onclick="focusCyclone(${cy.lat},${cy.lon},'${cy.name}')">
+          <div class="cy-header">
+            <div class="cy-dot" style="background:${cy.color}"></div>
+            <div class="cy-name">${cy.name}</div>
+            <span class="imd-badge ${imdClass(cy.category_code)}">${cy.category_code}</span>
+          </div>
+          <div class="cy-meta">
+            💨 ${cy.wind_kmh} km/h &nbsp;·&nbsp; 🌡 ${cy.pressure_hpa} hPa<br>
+            🧭 ${cy.movement} &nbsp;·&nbsp; 🌊 Surge ~${cy.surge_m}m<br>
+            🗺 ${cy.basin} &nbsp;·&nbsp; ${cy.season}
+          </div>
+          <div class="saffir-row mt-2">${saffirDots(cy.saffir || 1)}<span style="font-size:0.65rem;color:var(--ss-muted);margin-left:6px">Saffir-Simpson ${cy.saffir || 1}</span></div>
+          ${cy.landfall ? `
+          <div class="landfall-card mt-2">
+            <div class="landfall-label">Projected landfall</div>
+            <div class="landfall-val">⚠ ${cy.landfall.state} — T+${cy.landfall.eta_hours}h</div>
+          </div>` : ""}
+          ${cy.atmospheric ? `
+          <div class="marine-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+            ${cy.atmospheric.surface_pressure_hpa != null ? `<div class="atmo-chip">${cy.atmospheric.surface_pressure_hpa.toFixed(0)} hPa<span>Surface pressure</span></div>` : ""}
+            ${cy.atmospheric.humidity_pct != null ? `<div class="atmo-chip">${cy.atmospheric.humidity_pct.toFixed(0)}%<span>Humidity</span></div>` : ""}
+          </div>` : ""}
+        </div>
+      `).join("");
+    })
+    .catch(() => {
+      document.getElementById("cy-list").innerHTML =
+        '<div style="color:#E24B4A;font-size:0.8rem">API unreachable — is the server running?</div>';
+    });
+}
+
+function focusCyclone(lat, lon, name) {
+  cyMap.setView([lat, lon], 6);
+  markerGroup.eachLayer(m => {
+    if (m.getLatLng && Math.abs(m.getLatLng().lat - lat) < 0.1) m.openPopup();
+  });
+}
+
+// ── Historical cyclones ───────────────────────────────────────
+function loadHistory() {
+  fetch(`${API}/cyclone-history`)
+    .then(r => r.json())
+    .then(data => {
+      const items = data.data || [];
+      const el    = document.getElementById("hist-list");
+      if (!items.length) { el.innerHTML = '<div style="color:var(--ss-muted)">No history data</div>'; return; }
+
+      el.innerHTML = items.map(h => `
+        <div class="hist-row">
+          <span class="imd-badge ${imdClass(h.category_code)}">${h.category_code}</span>
+          <div class="hist-name">${h.name} <span style="font-size:0.68rem;color:var(--ss-muted)">(${h.year})</span></div>
+          <div class="hist-wind">💨 ${h.peak_wind} km/h</div>
+          <div style="font-size:0.7rem;color:var(--ss-muted);min-width:80px">${h.landfall}</div>
+        </div>
+      `).join("");
+    })
+    .catch(() => document.getElementById("hist-list").innerHTML = '<div style="color:#E24B4A;font-size:0.8rem">API error</div>');
+}
+
+// ── Climatology dual-bar chart ────────────────────────────────
+function loadClimatology() {
+  fetch(`${API}/cyclone-climatology`)
+    .then(r => r.json())
+    .then(data => {
+      const items = data.data || [];
+      const wrap  = document.getElementById("clim2-wrap");
+      const mnths = document.getElementById("clim2-months");
+      if (!items.length || !wrap) return;
+
+      const maxVal  = Math.max(...items.map(d => d.total), 0.1);
+      const curMonth = new Date().getMonth() + 1;
+
+      wrap.innerHTML  = "";
+      mnths.innerHTML = "";
+
+      items.forEach(d => {
+        const bobH = Math.round((d.bob_count / maxVal) * 100);
+        const asH  = Math.round((d.as_count  / maxVal) * 100);
+        const isCur = d.month_num === curMonth;
+
+        const col = document.createElement("div");
+        col.className = "clim2-col";
+        col.title = `${d.month}: BoB ${d.bob_count} · AS ${d.as_count}`;
+
+        const bars = document.createElement("div");
+        bars.className = "clim2-bars";
+
+        const bBar = document.createElement("div");
+        bBar.className = "clim2-bar";
+        bBar.style.height     = bobH + "%";
+        bBar.style.background = isCur ? "#5aadff" : "#378ADD";
+        bBar.style.opacity    = isCur ? "1" : "0.75";
+        bars.appendChild(bBar);
+
+        const aBar = document.createElement("div");
+        aBar.className = "clim2-bar";
+        aBar.style.height     = asH + "%";
+        aBar.style.background = isCur ? "#ffd06a" : "#EF9F27";
+        aBar.style.opacity    = isCur ? "1" : "0.75";
+        bars.appendChild(aBar);
+
+        col.appendChild(bars);
+
+        const lbl = document.createElement("div");
+        lbl.className = "clim2-lbl";
+        lbl.textContent = d.month.slice(0,3);
+        if (isCur) lbl.style.color = "#EF9F27";
+        col.appendChild(lbl);
+
+        wrap.appendChild(col);
+      });
+    })
+    .catch(console.warn);
+}
+
+// ── Risk Scanner ──────────────────────────────────────────────
+function scanCycloneRisk() {
+  const lat = parseFloat(document.getElementById("scan-lat").value);
+  const lon = parseFloat(document.getElementById("scan-lon").value);
+  if (isNaN(lat) || isNaN(lon)) return;
+
+  document.getElementById("scan-result").innerHTML =
+    '<div style="color:var(--ss-muted);font-size:0.8rem">Scanning — fetching atmospheric data...</div>';
+
+  const body = JSON.stringify({ lat, lon });
+  const hdrs = { "Content-Type": "application/json" };
+
+  Promise.all([
+    fetch(`${API}/predict_cyclone`, { method:"POST", headers:hdrs, body }).then(r=>r.json()),
+    fetch(`${API}/predict_storm`,   { method:"POST", headers:hdrs, body }).then(r=>r.json()),
+  ])
+  .then(([cy, st]) => {
+    // Risk meters
+    const cpill = document.getElementById("pill-cyclone");
+    const cmeter = document.getElementById("meter-cyclone");
+    const spill = document.getElementById("pill-storm");
+    const smeter = document.getElementById("meter-storm");
+    if (cpill)  { cpill.textContent = cy.risk_level; cpill.className = `risk-pill ${riskClass(cy.risk_level)}`; }
+    if (cmeter)   cmeter.style.width = Math.round(cy.probability * 100) + "%";
+    if (spill)  { spill.textContent = st.risk_level; spill.className = `risk-pill ${riskClass(st.risk_level)}`; }
+    if (smeter)   smeter.style.width = Math.round(st.probability * 100) + "%";
+
+    // Scan result grid
+    document.getElementById("scan-result").innerHTML = `
+      <div class="stat-grid mt-1">
+        <div class="stat-item">
+          <div class="stat-val"><span class="risk-pill ${riskClass(cy.risk_level)}">${cy.risk_level}</span></div>
+          <div class="stat-lbl">Cyclone risk</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--ss-cyclone)">${(cy.probability*100).toFixed(0)}%</div>
+          <div class="stat-lbl">Probability</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--ss-text);font-size:0.75rem">${cy.seasonal_score != null ? (cy.seasonal_score*100).toFixed(0)+"%" : "—"}</div>
+          <div class="stat-lbl">Seasonal score</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--ss-text);font-size:0.75rem">${cy.season || "—"}</div>
+          <div class="stat-lbl">Season</div>
+        </div>
+      </div>
+    `;
+
+    // Atmospheric panel
+    const atmo = cy.atmospheric;
+    if (atmo) {
+      document.getElementById("atmo-panel").innerHTML = `
+        <div class="atmo-grid">
+          ${atmo.surface_pressure_hpa != null ? `<div class="atmo-chip">${atmo.surface_pressure_hpa.toFixed(0)} hPa<span>Surface pressure</span></div>` : ""}
+          ${atmo.wind_speed_kmh != null ? `<div class="atmo-chip">${atmo.wind_speed_kmh.toFixed(0)} km/h<span>Surface wind</span></div>` : ""}
+          ${atmo.humidity_pct != null ? `<div class="atmo-chip">${atmo.humidity_pct.toFixed(0)}%<span>Humidity</span></div>` : ""}
+          ${atmo.temperature_2c != null ? `<div class="atmo-chip">${atmo.temperature_2c.toFixed(1)}°C<span>Temp 2m</span></div>` : ""}
+          ${atmo.geopotential_500hpa_m != null ? `<div class="atmo-chip">${Math.round(atmo.geopotential_500hpa_m)} m<span>500hPa geoht</span></div>` : ""}
+          ${atmo.wind_direction_deg != null ? `<div class="atmo-chip">${atmo.wind_direction_deg.toFixed(0)}°<span>Wind dir</span></div>` : ""}
+        </div>
+        <div style="font-size:0.65rem;color:var(--ss-muted);margin-top:5px">Source: Open-Meteo Forecast API</div>
+      `;
+    } else {
+      document.getElementById("atmo-panel").innerHTML =
+        '<div style="font-size:0.75rem;color:var(--ss-muted)">Atmospheric data unavailable</div>';
+    }
+
+    // Factor list
+    const factors = cy.factors || [];
+    const fel = document.getElementById("factor-list");
+    fel.innerHTML = factors.length
+      ? factors.map(f => `<div class="factor-item"><div class="factor-dot"></div><span>${f}</span></div>`).join("")
+      : '<div style="color:var(--ss-muted)">No factors returned</div>';
+
+    // Drop pin on map
+    scanGroup.clearLayers();
+    L.circleMarker([lat, lon], {
+      radius: 7, color: "#EF9F27", fillColor: "#EF9F27", fillOpacity: 0.85, weight: 2,
+    }).bindPopup(`<b>Scan: (${lat}, ${lon})</b><br>Cyclone: ${cy.risk_level} (${(cy.probability*100).toFixed(0)}%)`)
+      .addTo(scanGroup).openPopup();
+    cyMap.setView([lat, lon], 6);
+  })
+  .catch(() => {
+    document.getElementById("scan-result").innerHTML =
+      '<div style="color:#E24B4A;font-size:0.78rem">API unreachable — start the Flask server first</div>';
+  });
+}
+
+// ── Tab switching ─────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll(".cy-tab").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  ["active","history","clim"].forEach(t => {
+    const el = document.getElementById("tab-" + t);
+    if (el) el.style.display = t === name ? "" : "none";
+  });
+  if (name === "history")  loadHistory();
+  if (name === "clim")     loadClimatology();
+}
+
+// ── Boot ──────────────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", () => {
+  initMap();
+  loadActiveCyclones();
+  startClock();
+
+  document.getElementById("scan-btn").addEventListener("click", scanCycloneRisk);
+  ["scan-lat","scan-lon"].forEach(id => {
+    document.getElementById(id)?.addEventListener("keyup", e => { if(e.key==="Enter") scanCycloneRisk(); });
+  });
+
+  // Auto-refresh every 60s
+  setInterval(loadActiveCyclones, 60000);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SeismoSense — Flood Detection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="static/css/style.css" />
+  <style>
+    :root { --ss-flood: #3ab5e6; --ss-flood-dark: #1a7fa8; }
+
+    .fl-card {
+      background: var(--ss-surface);
+      border: 1px solid var(--ss-border);
+      border-top: 3px solid var(--ss-flood);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+    }
+
+    /* Risk level colours */
+    .pill-none-fl      { background:#1a2438; color:#5a7090; }
+    .pill-low-fl       { background:#0f2a1e; color:#1D9E75; }
+    .pill-moderate-fl  { background:#2a1f0a; color:#EF9F27; }
+    .pill-high-fl      { background:#2d1010; color:#E24B4A; }
+    .pill-severe-fl    { background:#3d1010; color:#ff6060; }
+    .pill-catastrophic { background:#4a0505; color:#ff9999; }
+
+    /* Precip metric chips */
+    .metric-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px; }
+    .metric-chip {
+      background:var(--ss-surface2); border:1px solid var(--ss-border);
+      border-radius:6px; padding:7px 10px;
+    }
+    .metric-val { font-size:1rem; font-weight:600; color:#e8f0ff; }
+    .metric-lbl { font-size:0.65rem; color:var(--ss-muted); margin-top:1px; }
+
+    /* 7-day forecast bars */
+    .forecast-bars { display:flex; align-items:flex-end; gap:5px; height:70px; margin-top:8px; }
+    .f-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; }
+    .f-bar { width:100%; border-radius:3px 3px 0 0; min-height:3px; transition:height 0.4s ease; cursor:pointer; }
+    .f-bar:hover { opacity:0.75; }
+    .f-lbl { font-size:0.52rem; color:var(--ss-muted); }
+
+    /* Factor list */
+    .factor-item {
+      font-size:0.78rem; color:var(--ss-text); padding:5px 0;
+      border-bottom:1px solid var(--ss-border);
+      display:flex; gap:8px; align-items:flex-start;
+    }
+    .factor-item:last-child { border-bottom:none; }
+    .factor-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0;
+                  margin-top:6px; background:var(--ss-flood); }
+
+    /* Soil moisture gauge */
+    .gauge-wrap { position:relative; margin:8px 0; }
+    .gauge-bg { height:8px; background:var(--ss-surface2); border-radius:4px; overflow:hidden; }
+    .gauge-fill { height:100%; border-radius:4px; transition:width 0.6s ease; }
+
+    /* Basin card */
+    .basin-card {
+      background:var(--ss-surface2); border:1px solid var(--ss-border);
+      border-radius:7px; padding:9px 11px; margin-top:8px;
+    }
+
+    /* Flood zone map legend */
+    .map-legend-box {
+      position:absolute; bottom:12px; right:12px; z-index:1000;
+      background:rgba(13,26,46,0.92); border:1px solid var(--ss-border);
+      border-radius:7px; padding:8px 10px; font-size:0.7rem; color:var(--ss-muted);
+    }
+    .legend-row { display:flex; align-items:center; gap:6px; padding:2px 0; }
+    .legend-swatch { width:12px; height:12px; border-radius:2px; flex-shrink:0; }
+  </style>
+</head>
+<body>
+
+<!-- ── NAVBAR ── -->
+<nav class="navbar ss-navbar sticky-top px-3 py-2">
+  <div class="d-flex align-items-center gap-2">
+    <span style="color:#1D9E75;font-size:1.2rem">🌐</span>
+    <span class="navbar-brand mb-0">SeismoSense <span style="color:#1D9E75;font-weight:400">India</span></span>
+  </div>
+  <ul class="nav d-none d-md-flex gap-1">
+    <li class="nav-item"><a class="nav-link" href="index.html"><i class="bi bi-activity me-1"></i>Dashboard</a></li>
+    <li class="nav-item"><a class="nav-link" href="earthquake.html"><i class="bi bi-geo me-1"></i>Earthquake</a></li>
+    <li class="nav-item"><a class="nav-link" href="storm.html"><i class="bi bi-cloud-lightning me-1"></i>Storm</a></li>
+    <li class="nav-item"><a class="nav-link" href="cyclone.html"><i class="bi bi-wind me-1"></i>Cyclone</a></li>
+    <li class="nav-item"><a class="nav-link active" href="flood.html"><i class="bi bi-droplet-half me-1"></i>Flood</a></li>
+  </ul>
+  <div class="d-flex align-items-center gap-3">
+    <span id="ss-clock" class="ss-clock d-none d-lg-block">—</span>
+    <div class="live-indicator"><div class="live-dot"></div> LIVE</div>
+  </div>
+</nav>
+
+<!-- ── PAGE HEADER ── -->
+<div class="container-fluid px-3 pt-3 pb-1">
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <div>
+      <h5 class="mb-0" style="color:#e8f0ff">
+        <i class="bi bi-droplet-half me-2" style="color:var(--ss-flood)"></i>Flood Detection Module
+      </h5>
+      <small style="color:var(--ss-muted)">Open-Meteo precipitation · Soil moisture · River discharge · Basin heuristics</small>
+    </div>
+    <div class="ms-auto d-flex gap-2 flex-wrap">
+      <span style="font-size:0.65rem;padding:3px 9px;border-radius:20px;font-weight:600;background:#0a2030;color:#3ab5e6;">Open-Meteo Live</span>
+      <span style="font-size:0.65rem;padding:3px 9px;border-radius:20px;font-weight:600;background:#0f2a1e;color:#1D9E75;">River Basin Model</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div class="container-fluid px-3 pb-3">
+  <div class="row g-3">
+
+    <!-- ════ LEFT SIDEBAR ════ -->
+    <div class="col-12 col-lg-3">
+
+      <!-- Scanner -->
+      <div class="fl-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-crosshair me-1"></i>Flood Risk Scanner</div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label style="font-size:0.7rem;color:var(--ss-muted)">Latitude</label>
+            <input id="scan-lat" class="ss-input" type="text" value="22.57" />
+          </div>
+          <div class="col-6">
+            <label style="font-size:0.7rem;color:var(--ss-muted)">Longitude</label>
+            <input id="scan-lon" class="ss-input" type="text" value="88.36" />
+          </div>
+        </div>
+
+        <div class="mb-1" style="font-size:0.65rem;color:var(--ss-muted)">Flood-prone locations:</div>
+        <div class="d-flex flex-wrap gap-1 mb-2">
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(22.57,88.36)">Kolkata</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(26.18,91.75)">Guwahati</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(25.61,85.14)">Patna</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(20.27,85.83)">Bhubaneswar</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(19.07,72.87)">Mumbai</button>
+          <button class="btn btn-sm" style="font-size:0.62rem;padding:2px 7px;background:var(--ss-surface2);color:var(--ss-muted);border:1px solid var(--ss-border)" onclick="preset(9.93,76.26)">Kochi</button>
+        </div>
+
+        <button id="scan-btn" class="ss-btn mb-3" style="background:#0a2030;border-color:var(--ss-flood);color:#e8f0ff;">
+          <i class="bi bi-droplet me-1"></i>Analyse Flood Risk
+        </button>
+        <div id="scan-result" style="font-size:0.78rem;color:var(--ss-muted);text-align:center">
+          Select a city or enter coordinates
+        </div>
+      </div>
+
+      <!-- Soil Moisture + River -->
+      <div class="fl-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-layers me-1"></i>Ground Conditions</div>
+        <div id="ground-panel" style="color:var(--ss-muted);font-size:0.78rem">Run a scan to load</div>
+      </div>
+
+      <!-- Flood Level Reference -->
+      <div class="fl-card">
+        <div class="ss-card-title"><i class="bi bi-info-circle me-1"></i>Flood Risk Levels</div>
+        <div style="font-size:0.77rem;line-height:2.1">
+          <div><span class="risk-pill pill-low me-2">LOW</span>Minor waterlogging</div>
+          <div><span class="risk-pill pill-mod me-2">MODERATE</span>Localised flooding</div>
+          <div><span class="risk-pill pill-high me-2">HIGH</span>Significant flooding</div>
+          <div><span class="risk-pill" style="background:#3d1010;color:#ff6060;margin-right:8px">SEVERE</span>Widespread flooding</div>
+          <div><span class="risk-pill" style="background:#4a0505;color:#ff9999;margin-right:8px">CATASTR.</span>Flash flood imminent</div>
+        </div>
+      </div>
+
+    </div><!-- /left -->
+
+    <!-- ════ CENTRE ════ -->
+    <div class="col-12 col-lg-6">
+
+      <!-- Map -->
+      <div class="fl-card p-0 mb-3" style="overflow:hidden">
+        <div id="flood-map" style="height:390px;position:relative">
+          <div class="map-legend-box">
+            <div style="font-size:0.65rem;color:var(--ss-muted);margin-bottom:4px;font-weight:600">FLOOD ZONES</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#3ab5e6;opacity:0.5"></div>High precip zone</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#1D9E75;opacity:0.5"></div>Moderate zone</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#E24B4A;opacity:0.7"></div>Scan point</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Precipitation Metrics -->
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-7">
+          <div class="fl-card h-100">
+            <div class="ss-card-title"><i class="bi bi-cloud-rain me-1"></i>Precipitation Metrics</div>
+            <div id="precip-metrics" style="color:var(--ss-muted);font-size:0.78rem">Run a scan to load precipitation data</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-5">
+          <div class="fl-card h-100">
+            <div class="ss-card-title"><i class="bi bi-bar-chart me-1"></i>7-Day Forecast</div>
+            <div id="forecast-bars" class="forecast-bars">
+              <div style="color:var(--ss-muted);font-size:0.75rem;align-self:center;width:100%;text-align:center">No data</div>
+            </div>
+            <div id="forecast-dates" style="display:flex;gap:5px;margin-top:3px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Risk Factors -->
+      <div class="fl-card">
+        <div class="ss-card-title"><i class="bi bi-list-check me-1"></i>Contributing Factors</div>
+        <div id="factor-list" style="font-size:0.78rem;color:var(--ss-muted)">
+          Run a scan to see the factors driving the flood risk score
+        </div>
+      </div>
+    </div><!-- /centre -->
+
+    <!-- ════ RIGHT SIDEBAR ════ -->
+    <div class="col-12 col-lg-3">
+
+      <!-- Risk Summary -->
+      <div class="fl-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-shield me-1"></i>Location Risk</div>
+        <div class="risk-meter-wrap mt-1">
+          <div class="risk-label">
+            <span style="color:var(--ss-flood)"><i class="bi bi-droplet me-1"></i>Flood</span>
+            <span id="pill-flood" class="risk-pill pill-none">—</span>
+          </div>
+          <div class="risk-bar-bg"><div id="meter-flood" class="risk-bar-fill" style="width:0%;background:var(--ss-flood)"></div></div>
+        </div>
+        <div id="risk-summary" style="font-size:0.78rem;color:var(--ss-muted)">Run scan for summary</div>
+      </div>
+
+      <!-- Basin Info -->
+      <div class="fl-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-water me-1"></i>River Basin</div>
+        <div id="basin-panel" style="font-size:0.78rem;color:var(--ss-muted)">Run scan to identify basin</div>
+      </div>
+
+      <!-- India Flood Stats -->
+      <div class="fl-card mb-3">
+        <div class="ss-card-title"><i class="bi bi-graph-up me-1"></i>India Flood Statistics</div>
+        <div class="stat-grid">
+          <div class="stat-item"><div class="stat-val" style="color:var(--ss-flood);font-size:1rem">Ganges</div><div class="stat-lbl">Highest risk basin</div></div>
+          <div class="stat-item"><div class="stat-val" style="color:#EF9F27;font-size:1rem">Jul–Sep</div><div class="stat-lbl">Peak flood season</div></div>
+          <div class="stat-item"><div class="stat-val" style="color:#E24B4A;font-size:1rem">150mm</div><div class="stat-lbl">Catastrophic 24h rain</div></div>
+          <div class="stat-item"><div class="stat-val" style="color:#1D9E75;font-size:1rem">5</div><div class="stat-lbl">Major basins tracked</div></div>
+        </div>
+      </div>
+
+      <!-- Alerts link -->
+      <div class="fl-card">
+        <div class="ss-card-title"><i class="bi bi-bell me-1"></i>Active Alerts</div>
+        <div id="flood-alerts" style="font-size:0.78rem;color:var(--ss-muted)">Checking alerts...</div>
+      </div>
+
+    </div><!-- /right -->
+  </div>
+</div>
+
+<footer class="ss-footer text-center mt-2">
+  SeismoSense India · Flood Module (Phase 4) · Open-Meteo Forecast API · River Basin Heuristics
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+const API = "http://localhost:8000";
+let floodMap, markerGroup, zoneGroup;
+
+function startClock() {
+  const el = document.getElementById("ss-clock");
+  if (el) setInterval(() => { el.textContent = new Date().toUTCString().slice(0,25)+" UTC"; }, 1000);
+}
+
+function preset(lat, lon) {
+  document.getElementById("scan-lat").value = lat;
+  document.getElementById("scan-lon").value = lon;
+}
+
+// ── Map ─────────────────────────────────────────────────────
+function initMap() {
+  floodMap = L.map("flood-map", { center: [23.0, 82.0], zoom: 5 });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors", maxZoom: 18,
+  }).addTo(floodMap);
+  markerGroup = L.layerGroup().addTo(floodMap);
+  zoneGroup   = L.layerGroup().addTo(floodMap);
+  _drawFloodZones();
+}
+
+function _drawFloodZones() {
+  // Ganges-Brahmaputra delta (very high risk)
+  L.rectangle([[21,87],[26,92]], {
+    color:"#3ab5e6", weight:1, opacity:0.5,
+    fill:true, fillColor:"#3ab5e6", fillOpacity:0.08, dashArray:"5 3"
+  }).addTo(zoneGroup).bindTooltip("Ganges-Brahmaputra Delta (Very High Risk)");
+
+  // Brahmaputra valley
+  L.rectangle([[25,88],[28,96]], {
+    color:"#3ab5e6", weight:1, opacity:0.4,
+    fill:true, fillColor:"#3ab5e6", fillOpacity:0.06, dashArray:"5 3"
+  }).addTo(zoneGroup).bindTooltip("Brahmaputra Valley (High Risk)");
+
+  // Bihar plains
+  L.rectangle([[24,83],[27,88]], {
+    color:"#1D9E75", weight:1, opacity:0.4,
+    fill:true, fillColor:"#1D9E75", fillOpacity:0.06, dashArray:"5 3"
+  }).addTo(zoneGroup).bindTooltip("Bihar Flood Plains (High Risk)");
+
+  // Kerala coast
+  L.rectangle([[8,75],[12,77]], {
+    color:"#1D9E75", weight:1, opacity:0.3,
+    fill:true, fillColor:"#1D9E75", fillOpacity:0.05, dashArray:"5 3"
+  }).addTo(zoneGroup).bindTooltip("Kerala Coastal Zone (Moderate Risk)");
+
+  // Odisha coast
+  L.rectangle([[18,83],[21,87]], {
+    color:"#EF9F27", weight:1, opacity:0.35,
+    fill:true, fillColor:"#EF9F27", fillOpacity:0.06, dashArray:"5 3"
+  }).addTo(zoneGroup).bindTooltip("Odisha Coast (Moderate Risk)");
+}
+
+// ── Risk level helper ────────────────────────────────────────
+function riskPillClass(level) {
+  const l = (level || "").toUpperCase();
+  if (l === "CATASTROPHIC") return "style=\"background:#4a0505;color:#ff9999\"";
+  if (l === "SEVERE")       return "style=\"background:#3d1010;color:#ff6060\"";
+  if (l === "HIGH")         return "class=\"risk-pill pill-high\"";
+  if (l === "MODERATE")     return "class=\"risk-pill pill-mod\"";
+  if (l === "LOW")          return "class=\"risk-pill pill-low\"";
+  return "class=\"risk-pill pill-none\"";
+}
+
+function barColor(mm) {
+  if (mm >= 80)  return "#E24B4A";
+  if (mm >= 30)  return "#EF9F27";
+  if (mm >= 10)  return "#378ADD";
+  return "#1D9E75";
+}
+
+// ── Forecast chart ───────────────────────────────────────────
+function renderForecast(dates, daily) {
+  const barsEl  = document.getElementById("forecast-bars");
+  const datesEl = document.getElementById("forecast-dates");
+  if (!barsEl || !daily || !daily.length) return;
+
+  const maxVal = Math.max(...daily, 1);
+  barsEl.innerHTML  = "";
+  datesEl.innerHTML = "";
+
+  daily.forEach((mm, i) => {
+    const pct  = Math.round((mm / maxVal) * 100);
+    const col  = document.createElement("div");
+    col.className = "f-col";
+
+    const bar = document.createElement("div");
+    bar.className = "f-bar";
+    bar.style.height     = pct + "%";
+    bar.style.background = barColor(mm);
+    bar.title = `${dates[i] || "Day "+(i+1)}: ${mm.toFixed(1)} mm`;
+    col.appendChild(bar);
+
+    const lbl = document.createElement("div");
+    lbl.className = "f-lbl";
+    lbl.textContent = dates[i] ? dates[i].slice(5) : i+1;
+    col.appendChild(lbl);
+
+    barsEl.appendChild(col);
+  });
+}
+
+// ── Main scan ────────────────────────────────────────────────
+function scanFloodRisk() {
+  const lat = parseFloat(document.getElementById("scan-lat").value);
+  const lon = parseFloat(document.getElementById("scan-lon").value);
+  if (isNaN(lat) || isNaN(lon)) return;
+
+  document.getElementById("scan-result").innerHTML =
+    '<div style="color:var(--ss-muted);font-size:0.8rem">Fetching precipitation data...</div>';
+
+  fetch(`${API}/flood-risk`, {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({lat, lon})
+  })
+  .then(r => r.json())
+  .then(d => {
+    const level = d.risk_level || "NONE";
+    const prob  = d.probability || 0;
+    const m     = d.metrics     || {};
+    const fc    = d.forecast    || {};
+
+    // Risk pill + meter
+    const pill  = document.getElementById("pill-flood");
+    const meter = document.getElementById("meter-flood");
+    if (pill)  { pill.innerHTML = `<span ${riskPillClass(level)} class="risk-pill">${level}</span>`; }
+    if (meter)   meter.style.width = Math.round(prob * 100) + "%";
+
+    // Scan result summary
+    document.getElementById("scan-result").innerHTML = `
+      <div class="stat-grid mt-1">
+        <div class="stat-item">
+          <div class="stat-val"><span ${riskPillClass(level)} class="risk-pill">${level}</span></div>
+          <div class="stat-lbl">Flood risk</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" style="color:var(--ss-flood)">${(prob*100).toFixed(0)}%</div>
+          <div class="stat-lbl">Probability</div>
+        </div>
+      </div>
+    `;
+
+    // Risk summary right panel
+    document.getElementById("risk-summary").innerHTML = `
+      <div style="margin-top:6px;font-size:0.72rem;color:var(--ss-muted);line-height:1.8">
+        Source: <span style="color:var(--ss-text)">${d.source || "open-meteo"}</span><br>
+        24h rain: <span style="color:var(--ss-flood)">${m.precip_24h_mm ?? "—"} mm</span><br>
+        72h rain: <span style="color:var(--ss-text)">${m.precip_72h_mm ?? "—"} mm</span><br>
+        7-day total: <span style="color:var(--ss-text)">${m.precip_7d_mm ?? "—"} mm</span>
+      </div>
+    `;
+
+    // Precipitation metrics
+    document.getElementById("precip-metrics").innerHTML = `
+      <div class="metric-grid">
+        <div class="metric-chip">
+          <div class="metric-val" style="color:${barColor(m.precip_1h_mm||0)}">${m.precip_1h_mm ?? "—"}</div>
+          <div class="metric-lbl">1h mm</div>
+        </div>
+        <div class="metric-chip">
+          <div class="metric-val" style="color:${barColor(m.precip_6h_mm||0)}">${m.precip_6h_mm ?? "—"}</div>
+          <div class="metric-lbl">6h mm</div>
+        </div>
+        <div class="metric-chip">
+          <div class="metric-val" style="color:${barColor(m.precip_24h_mm||0)}">${m.precip_24h_mm ?? "—"}</div>
+          <div class="metric-lbl">24h mm</div>
+        </div>
+        <div class="metric-chip">
+          <div class="metric-val" style="color:${barColor(m.precip_72h_mm||0)}">${m.precip_72h_mm ?? "—"}</div>
+          <div class="metric-lbl">72h mm</div>
+        </div>
+      </div>
+      <div style="font-size:0.68rem;color:var(--ss-muted);margin-top:6px">
+        Source: Open-Meteo · ${d.updated_at ? d.updated_at.slice(0,19)+"Z" : ""}
+      </div>
+    `;
+
+    // Ground conditions
+    const sm   = m.soil_moisture;
+    const rv   = m.river_discharge_m3s;
+    const smPct = sm != null ? Math.round(sm * 100) : null;
+    const smColor = smPct >= 80 ? "#E24B4A" : smPct >= 60 ? "#EF9F27" : "#1D9E75";
+    document.getElementById("ground-panel").innerHTML = `
+      ${sm != null ? `
+      <div style="margin-bottom:8px">
+        <div style="font-size:0.72rem;color:var(--ss-muted);margin-bottom:3px">
+          Soil moisture: <strong style="color:${smColor}">${smPct}%</strong>
+        </div>
+        <div class="gauge-bg"><div class="gauge-fill" style="width:${smPct}%;background:${smColor}"></div></div>
+      </div>` : ""}
+      ${rv != null ? `
+      <div style="font-size:0.72rem;color:var(--ss-muted)">
+        River discharge: <strong style="color:var(--ss-flood)">${rv.toFixed(0)} m³/s</strong>
+      </div>` : ""}
+      ${sm == null && rv == null ? '<div style="color:var(--ss-muted)">Ground data unavailable for this location</div>' : ""}
+    `;
+
+    // 7-day forecast
+    if (fc.dates && fc.daily_mm && fc.daily_mm.length) {
+      renderForecast(fc.dates, fc.daily_mm);
+    } else {
+      document.getElementById("forecast-bars").innerHTML =
+        '<div style="color:var(--ss-muted);font-size:0.75rem;align-self:center;width:100%;text-align:center">No forecast data</div>';
+    }
+
+    // Contributing factors
+    const factors = d.factors || [];
+    document.getElementById("factor-list").innerHTML = factors.length
+      ? factors.map(f => `<div class="factor-item"><div class="factor-dot"></div><span>${f}</span></div>`).join("")
+      : '<div style="color:var(--ss-muted)">No risk factors identified</div>';
+
+    // Basin panel
+    document.getElementById("basin-panel").innerHTML = `
+      <div class="basin-card">
+        <div style="font-size:0.78rem;font-weight:500;color:var(--ss-text);margin-bottom:3px">
+          ${d.basin || "Standard terrain"}
+        </div>
+        <div style="font-size:0.68rem;color:var(--ss-muted)">
+          Basin amplification factor applied to precipitation scoring
+        </div>
+      </div>
+    `;
+
+    // Map pin
+    markerGroup.clearLayers();
+    const pinColor = level === "CATASTROPHIC" || level === "SEVERE" ? "#E24B4A"
+                   : level === "HIGH"        ? "#EF9F27"
+                   : level === "MODERATE"    ? "#378ADD"
+                   : "#1D9E75";
+    L.circleMarker([lat, lon], {
+      radius:9, color:pinColor, fillColor:pinColor, fillOpacity:0.85, weight:2
+    }).bindPopup(`<b>Scan (${lat}, ${lon})</b><br>Flood: <b>${level}</b> (${(prob*100).toFixed(0)}%)`)
+      .addTo(markerGroup).openPopup();
+    floodMap.setView([lat, lon], 7);
+  })
+  .catch(() => {
+    document.getElementById("scan-result").innerHTML =
+      '<div style="color:#E24B4A;font-size:0.78rem">API unreachable — start Flask server first</div>';
+  });
+}
+
+// ── Load active flood-related alerts ─────────────────────────
+function loadAlerts() {
+  fetch(`${API}/alerts`)
+    .then(r => r.json())
+    .then(data => {
+      const el = document.getElementById("flood-alerts");
+      // Show storm/cyclone alerts that could cause flooding
+      const relevant = (data.data || []).filter(a =>
+        ["storm","cyclone","tsunami"].includes(a.hazard)
+      );
+      if (!relevant.length) {
+        el.innerHTML = '<div style="color:var(--ss-muted)">No flood-related alerts</div>';
+        return;
+      }
+      el.innerHTML = relevant.slice(0,3).map(a => `
+        <div class="alert-item">
+          <div class="alert-icon ai-st" style="font-size:0.9rem">${a.icon}</div>
+          <div class="alert-text"><strong>${a.title}</strong> — ${a.body}</div>
+        </div>
+      `).join("");
+    })
+    .catch(() => {
+      document.getElementById("flood-alerts").innerHTML =
+        '<div style="color:var(--ss-muted)">Alerts unavailable</div>';
+    });
+}
+
+// ── Boot ─────────────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", () => {
+  initMap();
+  loadAlerts();
+  startClock();
+
+  document.getElementById("scan-btn").addEventListener("click", scanFloodRisk);
+  ["scan-lat","scan-lon"].forEach(id => {
+    document.getElementById(id)?.addEventListener("keyup", e => {
+      if (e.key === "Enter") scanFloodRisk();
+    });
+  });
+
+  setInterval(loadAlerts, 60000);
+});
+</script>
+</body>
+</html>

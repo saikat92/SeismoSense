@@ -146,7 +146,6 @@ function scanRisk() {
     fetch(`${API}/predict_storm`,      { method: "POST", headers: hdrs, body }).then(r => r.json()),
     fetch(`${API}/predict_cyclone`, { method: "POST", headers: hdrs, body }).then(r => r.json()),
     fetch(`${API}/flood-risk`,       { method: "POST", headers: hdrs, body }).then(r => r.json()),
-    fetch(`${API}/flood-risk`,       { method: "POST", headers: hdrs, body }).then(r => r.json()),
   ])
   .then(([eq, ts, st, cy, fl]) => {
     // Drop a pin
@@ -162,6 +161,7 @@ function scanRisk() {
     setMeter("tsunami", ts.probability,  ts.threat_level);
     setMeter("storm",   st.probability,  st.risk_level);
     setMeter("cyclone", cy.probability,  cy.risk_level);
+    if (fl) setMeter("flood",   fl.probability || 0, fl.risk_level || "Low");
 
     showScanResult("ok", `
       <div class="stat-grid mt-2">
