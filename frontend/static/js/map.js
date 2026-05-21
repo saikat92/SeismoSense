@@ -146,8 +146,9 @@ function scanRisk() {
     fetch(`${API}/predict_storm`,      { method: "POST", headers: hdrs, body }).then(r => r.json()),
     fetch(`${API}/predict_cyclone`, { method: "POST", headers: hdrs, body }).then(r => r.json()),
     fetch(`${API}/flood-risk`,       { method: "POST", headers: hdrs, body }).then(r => r.json()),
+    fetch(`${API}/weather-aqi`,       { method: "POST", headers: hdrs, body }).then(r => r.json()),
   ])
-  .then(([eq, ts, st, cy, fl]) => {
+  .then(([eq, ts, st, cy, fl, wx]) => {
     // Drop a pin
     markerGroup.clearLayers();
     L.marker([lat, lon])
@@ -162,6 +163,7 @@ function scanRisk() {
     setMeter("storm",   st.probability,  st.risk_level);
     setMeter("cyclone", cy.probability,  cy.risk_level);
     if (fl) setMeter("flood",   fl.probability || 0, fl.risk_level || "Low");
+    if (wx) renderWeatherAQI(wx);
 
     showScanResult("ok", `
       <div class="stat-grid mt-2">
@@ -284,3 +286,128 @@ window.addEventListener("DOMContentLoaded", () => {
     if (inp) inp.addEventListener("keyup", e => { if (e.key === "Enter") scanRisk(); });
   });
 });
+// ============================================================
+// WEATHER + AQI + CITIZEN TIPS  (Phase 5)
+// ============================================================
+
+function windDir(deg) {
+  if (deg == null) return "—";
+  const dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE",
+                "S","SSW","SW","WSW","W","WNW","NW","NNW"];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
+function uvLabel(uv) {
+  if (uv == null)  return {t:"—",    c:"var(--ss-muted)"};
+  if (uv >= 11)    return {t:"Extreme",   c:"#9B59B6"};
+  if (uv >= 8)     return {t:"Very High", c:"#E24B4A"};
+  if (uv >= 6)     return {t:"High",      c:"#EF9F27"};
+  if (uv >= 3)     return {t:"Moderate",  c:"#1D9E75"};
+  return           {t:"Low",       c:"#378ADD"};
+}
+
+function aqiColor(band) {
+  return (band && band.color) ? band.color : "var(--ss-muted)";
+}
+
+function shortDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-IN", { weekday:"short", month:"short", day:"numeric" });
+}
+
+function renderWeatherAQI(wx) {
+  const card = document.getElementById("weather-card");
+  if (!card) return;
+  card.style.display = "";
+
+  const badge = document.getElementById("weather-source-badge");
+  if (badge) { badge.textContent = wx.source || "open-meteo"; badge.className = "source-badge sb-usgs"; }
+
+  const cur = wx.current || {};
+
+  // ── Current conditions ──────────────────────────────────
+  const uv  = uvLabel(cur.uv_index);
+  document.getElementById("weather-current").innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="font-size:2rem;line-height:1">${cur.emoji || "🌡️"}</div>
+      <div>
+        <div style="font-size:1.4rem;font-weight:700;color:#e8f0ff">
+          ${cur.temp_c != null ? cur.temp_c.toFixed(1)+"°C" : "—"}
+          <span style="font-size:0.75rem;color:var(--ss-muted);font-weight:400">
+            feels ${cur.feels_like_c != null ? cur.feels_like_c.toFixed(0)+"°C" : "—"}
+          </span>
+        </div>
+        <div style="font-size:0.78rem;color:var(--ss-text)">${cur.description || "—"}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:0.72rem;color:var(--ss-muted)">
+      <div>💧 Humidity: <strong style="color:var(--ss-text)">${cur.humidity_pct != null ? cur.humidity_pct+"%" : "—"}</strong></div>
+      <div>💨 Wind: <strong style="color:var(--ss-text)">${cur.wind_kmh != null ? cur.wind_kmh.toFixed(0)+" km/h "+windDir(cur.wind_dir_deg) : "—"}</strong></div>
+      <div>🌡️ Pressure: <strong style="color:var(--ss-text)">${cur.pressure_hpa != null ? cur.pressure_hpa.toFixed(0)+" hPa" : "—"}</strong></div>
+      <div>👁️ Visibility: <strong style="color:var(--ss-text)">${cur.visibility_km != null ? cur.visibility_km+" km" : "—"}</strong></div>
+      <div>☀️ UV Index: <strong style="color:${uv.c}">${cur.uv_index != null ? cur.uv_index.toFixed(1)+" ("+uv.t+")" : "—"}</strong></div>
+      <div>🌧️ Precip: <strong style="color:var(--ss-text)">${cur.precip_mm != null ? cur.precip_mm.toFixed(1)+" mm" : "—"}</strong></div>
+    </div>
+  `;
+
+  // ── AQI panel ──────────────────────────────────────────
+  const aqiEl = document.getElementById("aqi-panel");
+  if (wx.aqi && wx.aqi.value != null) {
+    const aqi  = wx.aqi;
+    const band = aqi.band || {};
+    const pct  = Math.min(Math.round((aqi.value / 120) * 100), 100);
+    aqiEl.innerHTML = `
+      <div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--ss-muted);margin-bottom:4px">Air Quality Index (EU)</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <div style="font-size:1.1rem;font-weight:700;color:${aqiColor(band)}">${aqi.value.toFixed(0)}</div>
+        <div style="font-size:0.8rem;font-weight:600;color:${aqiColor(band)}">${band.label || "—"}</div>
+      </div>
+      <div style="height:5px;background:var(--ss-surface2);border-radius:3px;overflow:hidden;margin-bottom:5px">
+        <div style="width:${pct}%;height:100%;background:${aqiColor(band)};border-radius:3px;transition:width 0.6s ease"></div>
+      </div>
+      <div style="font-size:0.68rem;color:var(--ss-muted);margin-bottom:5px">${band.desc || ""}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:0.68rem;color:var(--ss-muted)">
+        ${aqi.pm25 != null ? `<span>PM2.5: <b style="color:var(--ss-text)">${aqi.pm25.toFixed(0)}</b></span>` : ""}
+        ${aqi.pm10 != null ? `<span>PM10: <b style="color:var(--ss-text)">${aqi.pm10.toFixed(0)}</b></span>` : ""}
+        ${aqi.o3 != null   ? `<span>O₃: <b style="color:var(--ss-text)">${aqi.o3.toFixed(0)}</b></span>` : ""}
+        ${aqi.no2 != null  ? `<span>NO₂: <b style="color:var(--ss-text)">${aqi.no2.toFixed(0)}</b></span>` : ""}
+      </div>
+    `;
+  } else {
+    aqiEl.innerHTML = `<div style="font-size:0.75rem;color:var(--ss-muted)">AQI data unavailable</div>`;
+  }
+
+  // ── 5-day forecast strip ────────────────────────────────
+  const strip = document.getElementById("forecast-strip");
+  if (wx.forecast && wx.forecast.length) {
+    strip.innerHTML = wx.forecast.map(d => `
+      <div style="flex:0 0 auto;min-width:72px;background:var(--ss-surface2);
+                  border:1px solid var(--ss-border);border-radius:7px;
+                  padding:7px 6px;text-align:center">
+        <div style="font-size:0.62rem;color:var(--ss-muted);margin-bottom:3px">${shortDate(d.date)}</div>
+        <div style="font-size:1.1rem">${d.emoji}</div>
+        <div style="font-size:0.68rem;color:var(--ss-muted);margin:2px 0">${d.description||"—"}</div>
+        <div style="font-size:0.75rem;font-weight:600;color:#e8f0ff">
+          ${d.temp_max_c != null ? d.temp_max_c.toFixed(0)+"°" : "—"}
+          <span style="color:var(--ss-muted);font-weight:400">
+            / ${d.temp_min_c != null ? d.temp_min_c.toFixed(0)+"°" : "—"}
+          </span>
+        </div>
+        ${d.precip_mm != null && d.precip_mm > 0
+          ? `<div style="font-size:0.62rem;color:#378ADD;margin-top:2px">💧${d.precip_mm.toFixed(0)}mm</div>`
+          : ""}
+      </div>
+    `).join("");
+  } else {
+    strip.innerHTML = `<div style="font-size:0.75rem;color:var(--ss-muted)">No forecast data</div>`;
+  }
+
+  // ── Citizen tips ────────────────────────────────────────
+  const tipsEl = document.getElementById("citizen-tips");
+  const tips   = wx.tips || [];
+  tipsEl.innerHTML = tips.map(t => `
+    <div style="font-size:0.77rem;color:var(--ss-text);padding:5px 0;
+                border-bottom:1px solid var(--ss-border);line-height:1.5">${t}</div>
+  `).join("") || `<div style="font-size:0.75rem;color:var(--ss-muted)">No tips available</div>`;
+}

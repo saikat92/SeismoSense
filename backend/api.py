@@ -13,6 +13,7 @@ from usgs_service    import fetch_recent_earthquakes
 from tsunami_service import assess_tsunami_risk, get_recent_tsunami_events
 from storm_service   import get_active_storms, predict_storm_risk
 from cyclone_service import get_active_cyclones, predict_cyclone_risk
+from weather_service import get_weather_and_aqi
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -45,7 +46,7 @@ def _parse_latlon(body):
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "timestamp": _now(), "version": "4.0.0"})
+    return jsonify({"status": "ok", "timestamp": _now(), "version": "5.0.0"})
 
 # ── EARTHQUAKE ───────────────────────────────────────────────────────────────
 
@@ -448,8 +449,43 @@ def all_hazard_summary():
     except Exception:
         results["flood"] = {"risk_level":"Low","probability":0.05,"source":"fallback"}
 
+    # Weather + AQI (non-blocking — errors don't fail the summary)
+    try:
+        results["weather"] = get_weather_and_aqi(lat, lon)
+    except Exception:
+        results["weather"] = {"current": None, "forecast": [], "aqi": None,
+                               "tips": [], "source": "fallback"}
+
     return jsonify({"status":"success","lat":lat,"lon":lon,
                     "hazards":results,"updated_at":_now()})
+
+
+# ── WEATHER + AQI (Phase 5) ──────────────────────────────────────────────────
+
+@app.route("/weather-aqi", methods=["POST"])
+def weather_aqi():
+    """
+    POST { lat, lon }
+    Returns current weather, 5-day forecast, AQI, and citizen tips.
+    Uses Open-Meteo Forecast + Open-Meteo Air Quality (both free, no key).
+    """
+    body = request.get_json(silent=True) or {}
+    lat, lon, err = _parse_latlon(body)
+    if err:
+        return _err(err)
+    try:
+        result = get_weather_and_aqi(lat, lon)
+    except Exception as exc:
+        logger.warning("Weather-AQI failed: %s", exc)
+        result = {
+            "current":  None,
+            "forecast": [],
+            "aqi":      None,
+            "tips":     ["⚠️ Weather data temporarily unavailable."],
+            "source":   "fallback",
+        }
+    return jsonify({"status": "success", "lat": lat, "lon": lon,
+                    **result, "updated_at": _now()})
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
